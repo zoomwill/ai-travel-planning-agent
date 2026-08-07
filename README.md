@@ -51,3 +51,9 @@ Expected response:
 ```json
 {"status": "ok", "service": "ai-travel-planner"}
 ```
+
+## Local infrastructure
+
+Phase P01 runs PostgreSQL, Redis, and Chroma with Docker Compose. Follow the beginner-safe
+startup, verification, logging, port-conflict, stop, and data-reset instructions in
+[`docs/08_INFRASTRUCTURE.md`](docs/08_INFRASTRUCTURE.md).

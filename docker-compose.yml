@@ -1,24 +1,25 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.14-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-travel}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-travel_dev_only}
       POSTGRES_DB: ${POSTGRES_DB:-travel_planner}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-travel} -d ${POSTGRES_DB:-travel_planner}"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.9-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -26,11 +27,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 5s
 
   chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:1.5.9
     ports:
-      - "${CHROMA_PORT:-8001}:8000"
+      - "127.0.0.1:${CHROMA_PORT:-8001}:8000"
     volumes:
       - chroma_data:/data
 
