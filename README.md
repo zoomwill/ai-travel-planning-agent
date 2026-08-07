@@ -33,11 +33,12 @@ Open the repository in Codex, then paste the prompt from:
 
 After Codex finishes a phase, run the tests, inspect the result, and only then continue to the next prompt.
 
-## Local quick check
+## Local application check
 
-After installing Python dependencies:
+Start Docker Desktop, start the three P01 services, and then start the application:
 
 ```bash
+docker compose up -d --wait --wait-timeout 120
 uv run uvicorn app.main:app --reload
 ```
 
@@ -45,6 +46,7 @@ Then open:
 
 - API docs: `http://127.0.0.1:8000/docs`
 - Health endpoint: `http://127.0.0.1:8000/health`
+- Readiness endpoint: `http://127.0.0.1:8000/ready`
 
 Expected response:
 
@@ -52,8 +54,17 @@ Expected response:
 {"status": "ok", "service": "ai-travel-planner"}
 ```
 
+`/health` and `/health/live` only prove that the web process is alive. `/ready` and
+`/health/ready` separately check PostgreSQL, Redis, and Chroma. Readiness returns HTTP 200 only
+when all three dependencies respond; otherwise it returns HTTP 503 without exposing passwords,
+connection strings, or internal exception messages.
+
 ## Local infrastructure
 
 Phase P01 runs PostgreSQL, Redis, and Chroma with Docker Compose. Follow the beginner-safe
 startup, verification, logging, port-conflict, stop, and data-reset instructions in
 [`docs/08_INFRASTRUCTURE.md`](docs/08_INFRASTRUCTURE.md).
+
+Phase P02 adds the application-side async clients, lifespan ownership, typed settings, and
+readiness API. Follow the beginner guide in
+[`docs/09_APPLICATION_INFRASTRUCTURE.md`](docs/09_APPLICATION_INFRASTRUCTURE.md).

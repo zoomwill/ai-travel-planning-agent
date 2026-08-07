@@ -137,7 +137,8 @@ CHROMA_PORT=8001
 ```
 
 After changing a port, run `docker compose config --quiet` and `docker compose up -d --wait`
-again. If Redis's host port changes, also update the port inside `REDIS_URL`.
+again. Phase P02 uses the same `REDIS_PORT` value for the application client, so there is no
+second Redis URL to update.
 
 ## PostgreSQL initialization variables
 

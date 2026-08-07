@@ -33,3 +33,39 @@ Record deviations from source pseudocode and important engineering decisions her
 - Remaining limitation: Image tags pin versions but not immutable image digests. Chroma has no
   container-level healthcheck, so Compose waits for its container to run and the explicit script
   verifies HTTP readiness afterward.
+
+### 2026-08-07 — Phase P02 async infrastructure clients and lifespan
+
+- Source intent: Give the FastAPI application typed PostgreSQL, Redis, and Chroma clients with
+  safe startup, readiness checks, dependency injection, and shutdown cleanup.
+- Implemented approach: Use SQLAlchemy 2.0's `create_async_engine()` and official `asyncio` extra
+  with the Psycopg 3 `postgresql+psycopg` dialect and `pool_pre_ping=True`; use
+  `redis.asyncio.Redis` with finite socket timeouts and public `aclose()`; use Chroma's official
+  `AsyncHttpClient` and v2 heartbeat behind a lazy, lock-protected provider. A dataclass resource
+  container is created by FastAPI's async lifespan, stored on `app.state`, and read through
+  request dependencies. Readiness probes all three services concurrently with independent
+  deadlines and returns only `ok` or `error`.
+- Why: The architecture screenshots are pseudocode and do not define current client lifecycle
+  APIs. FastAPI's supported lifespan API replaces deprecated startup/shutdown event decorators.
+  Structured SQLAlchemy URLs safely handle password punctuation. Chroma's async factory performs
+  tenant/database network validation, so running it during application startup would make
+  liveness unavailable during a Chroma outage.
+- Verification: Compose configuration parsing, final container status, and the independent P01
+  infrastructure checker all pass. The first explicit integration run exposed that plain
+  SQLAlchemy did not include `greenlet` for async engine disposal; changing the dependency to
+  `sqlalchemy[asyncio]` fixed the shutdown failure. The rerun passed one real Docker integration
+  test. In a live Uvicorn process, liveness returned HTTP 200 and readiness returned HTTP 200 with
+  all services `ok`; after intentionally stopping only Redis, liveness remained HTTP 200 and
+  readiness returned HTTP 503 with PostgreSQL and Chroma still `ok` and Redis `error`; after
+  restarting the same Redis container, readiness returned HTTP 200 again. Uvicorn then completed
+  graceful application shutdown with exit code 0 and released port 8000. The ordinary pytest
+  suite passed 27 tests with one explicitly skipped Docker integration test. Final Ruff lint
+  passed, Ruff confirmed all 66 files were formatted, and mypy found no issues in 25 application
+  source files.
+- Remaining limitation: Chroma 1.5.9's public `AsyncClientAPI` has no `close()`, `aclose()`, or
+  `stop()` method. Its internal HTTP component closes sessions when its private system stops, but
+  the application does not depend on private internals. The provider releases its reference at
+  shutdown. Also, Chroma indirectly permits NumPy 2.5, which requires Python 3.12; NumPy is
+  constrained to the current 2.4 maintenance line so this project retains its declared Python
+  3.11 compatibility. The current FastAPI/Starlette `TestClient` emits one upstream deprecation
+  warning about its httpx compatibility layer.
