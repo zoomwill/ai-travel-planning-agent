@@ -15,8 +15,10 @@ The screenshots describe a rich architecture and include many code-like examples
 ## What is already included
 
 - A minimal FastAPI application.
-- A health endpoint.
+- Liveness and infrastructure readiness endpoints.
 - Docker Compose services for PostgreSQL, Redis, and Chroma.
+- Validated travel-domain models for requirements and provider results.
+- Deterministic mock flight, hotel, attraction, weather, and route providers.
 - A project specification reconstructed from the screenshots.
 - A phase-by-phase beginner build plan.
 - A complete Codex prompt pack.
@@ -68,3 +70,6 @@ startup, verification, logging, port-conflict, stop, and data-reset instructions
 Phase P02 adds the application-side async clients, lifespan ownership, typed settings, and
 readiness API. Follow the beginner guide in
 [`docs/09_APPLICATION_INFRASTRUCTURE.md`](docs/09_APPLICATION_INFRASTRUCTURE.md).
+
+Phase P03 adds the shared travel vocabulary and deterministic local provider data. It does not
+call real travel APIs or an LLM. Read [`docs/10_DOMAIN_MODELS.md`](docs/10_DOMAIN_MODELS.md).

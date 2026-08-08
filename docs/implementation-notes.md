@@ -69,3 +69,31 @@ Record deviations from source pseudocode and important engineering decisions her
   constrained to the current 2.4 maintenance line so this project retains its declared Python
   3.11 compatibility. The current FastAPI/Starlette `TestClient` emits one upstream deprecation
   warning about its httpx compatibility layer.
+
+### 2026-08-08 — Phase P03 domain models and deterministic mock providers
+
+- Source intent: Establish shared models for trip requirements, travel provider results, final
+  plans, review scores, and safe tool errors; provide local mock travel services that return the
+  same result for the same input.
+- Implemented approach: Use Pydantic v2 `BaseModel`, `Field` constraints, and after-mode
+  `model_validator` methods. Represent dates and times with standard-library types, money with
+  `Decimal`, and supported currency/transport values with `StrEnum`. Keep models in `app/domain`
+  and business behavior in `app/services/mock_providers`. Providers use immutable templates and
+  stable calculations derived only from city text and trip dates. Curated Tokyo and Shanghai
+  examples are supplemented by deterministic generic city fallbacks.
+- Why: Typed models give later Agents one validated communication contract. `Decimal` avoids
+  binary floating-point money artifacts. The source's attraction, route, and daily-itinerary
+  sketches contain monetary fields without currency, so those models also carry `currency` to
+  keep each amount meaningful. Pydantic 2.13 cannot resolve an annotation written as `date: date`
+  because the field name shadows the imported type in the class body; importing the type as
+  `Date` preserves the required public field name while using the current supported API.
+- Verification: The focused domain and service suite passed 48 tests. Project-wide Ruff lint
+  passed, Ruff confirmed all 81 Python files were formatted, mypy found no issues in 35
+  application source files, and the ordinary project suite passed 75 tests with one explicitly
+  skipped Docker integration test. The existing FastAPI/Starlette TestClient compatibility
+  warning remains unchanged from P02.
+- Remaining limitation: Every provider result is invented test data, not live availability or a
+  measured forecast. Fixed currency factors exist only to create internally consistent examples
+  and are not exchange rates. Flight datetimes are simple local mock values without IANA timezone
+  identifiers. Curated city templates are intentionally limited, with generic fallbacks for other
+  valid cities. P03 does not choose options or assemble a plan; that belongs to P04.
