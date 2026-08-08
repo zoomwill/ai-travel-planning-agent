@@ -97,3 +97,35 @@ Record deviations from source pseudocode and important engineering decisions her
   and are not exchange rates. Flight datetimes are simple local mock values without IANA timezone
   identifiers. Curated city templates are intentionally limited, with generic fallbacks for other
   valid cities. P03 does not choose options or assemble a plan; that belongs to P04.
+
+### 2026-08-08 — Phase P04 deterministic planning service and HTTP API
+
+- Source intent: Build a “Single-Agent Planning MVP” that turns requirements plus flight, hotel,
+  attraction, weather, and route results into a complete structured plan and a readable Markdown
+  representation.
+- Implemented approach: Use an ordinary synchronous `planning_service` with an immutable bundle
+  of typed provider callables. It selects the first flight and highest-rated hotel, builds one day
+  for each inclusive trip date, cycles deterministic attractions, attaches matching weather, and
+  returns a Pydantic `TravelPlan`. FastAPI exposes that service at `POST /api/v1/plans/mock` with a
+  typed request and response. `TravelPlan` gained backward-compatible `budget_warning` and
+  `markdown` fields.
+- Why: P04 explicitly forbids Agent, LangGraph, LLM, RAG, MCP, and streaming work. A service
+  boundary preserves the source's planning behavior and can later be called by an Agent without
+  coupling business rules to HTTP. Current FastAPI request-body and `response_model` APIs use
+  Pydantic models directly, so invalid request data is handled as HTTP 422. The route translates a
+  known planning failure into a safe HTTP 503 instead of leaking a chained exception.
+- Verification: Focused service and API tests passed 16 tests. Final Ruff lint and format checks
+  passed, mypy found no issues in 37 application source files, and the full ordinary suite passed
+  91 tests with one explicitly skipped Docker integration test. A live Uvicorn request for a
+  five-day Shanghai-to-Tokyo trip returned HTTP 200 with five itinerary entries, a total of
+  `6300.00 CNY`, no budget warning for the `10000.00 CNY` budget, and nonempty Markdown. Because
+  this development computer uses a system proxy, the successful localhost curl explicitly used
+  `--noproxy '*'`; the first curl without that flag never reached Uvicorn and was terminated.
+  Uvicorn then completed graceful application shutdown with exit code 0 and no shutdown warning.
+- Remaining limitation: The P04 formula intentionally uses the selected flight price once, hotel
+  price multiplied by inclusive trip days, and per-traveler attraction admissions as daily
+  activity cost. It does not add the mock route estimate, taxes, meals, or other spending. The
+  route provider currently reports only CNY, so keeping it descriptive also avoids mixing
+  currencies. Preferences are carried in the response but do not alter ranking yet. All provider
+  data remains invented and deterministic; no live availability or production readiness is
+  claimed.

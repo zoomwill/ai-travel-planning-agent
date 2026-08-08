@@ -1,0 +1,282 @@
+"""Deterministically assemble a travel plan from the Phase P03 providers."""
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import timedelta
+from decimal import Decimal
+from typing import Final
+
+from app.domain.models import (
+    Attraction,
+    DailyItinerary,
+    FlightOption,
+    HotelOption,
+    RouteSummary,
+    TravelPlan,
+    TripRequirements,
+    WeatherSummary,
+)
+from app.services.mock_providers import (
+    get_route,
+    get_weather,
+    search_attractions,
+    search_flights,
+    search_hotels,
+)
+
+FlightSearch = Callable[[TripRequirements], list[FlightOption]]
+HotelSearch = Callable[[TripRequirements], list[HotelOption]]
+AttractionSearch = Callable[[TripRequirements], list[Attraction]]
+WeatherLookup = Callable[[TripRequirements], list[WeatherSummary]]
+RouteLookup = Callable[[str, str], RouteSummary]
+
+
+@dataclass(frozen=True, slots=True)
+class PlanningProviders:
+    """Group provider callables so tests and future adapters can replace them."""
+
+    search_flights: FlightSearch
+    search_hotels: HotelSearch
+    search_attractions: AttractionSearch
+    get_weather: WeatherLookup
+    get_route: RouteLookup
+
+
+MOCK_PLANNING_PROVIDERS: Final = PlanningProviders(
+    search_flights=search_flights,
+    search_hotels=search_hotels,
+    search_attractions=search_attractions,
+    get_weather=get_weather,
+    get_route=get_route,
+)
+
+
+class PlanningServiceError(RuntimeError):
+    """Report which safe planning stage failed without exposing private details."""
+
+    def __init__(self, stage: str) -> None:
+        self.stage = stage
+        super().__init__(f"mock travel planning failed during {stage}")
+
+
+def create_mock_travel_plan(
+    requirements: TripRequirements,
+    providers: PlanningProviders = MOCK_PLANNING_PROVIDERS,
+) -> TravelPlan:
+    """Build one repeatable plan from validated requirements and mock data."""
+
+    flights = _search_flights(requirements, providers)
+    hotels = _search_hotels(requirements, providers)
+    attractions = _search_attractions(requirements, providers)
+    weather = _get_weather(requirements, providers)
+
+    if not flights:
+        raise PlanningServiceError("flight selection")
+    if not hotels:
+        raise PlanningServiceError("hotel selection")
+    if not attractions:
+        raise PlanningServiceError("attraction selection")
+
+    flight = flights[0]
+    hotel = max(hotels, key=lambda option: option.rating)
+    route = _get_route(hotel, attractions[0], providers)
+
+    try:
+        daily_itinerary = _build_daily_itinerary(
+            requirements=requirements,
+            hotel=hotel,
+            attractions=attractions,
+            weather=weather,
+            route=route,
+            flight=flight,
+        )
+        hotel_cost = hotel.price_per_night * Decimal(len(daily_itinerary))
+        activity_cost = sum(
+            (day.estimated_cost for day in daily_itinerary),
+            start=Decimal("0.00"),
+        )
+        total_cost = flight.price + hotel_cost + activity_cost
+        budget_warning = _build_budget_warning(requirements, total_cost)
+        plan = TravelPlan(
+            requirements=requirements,
+            flight=flight,
+            hotel=hotel,
+            daily_itinerary=daily_itinerary,
+            total_cost=total_cost,
+            currency=requirements.currency,
+            budget_warning=budget_warning,
+        )
+        return plan.model_copy(update={"markdown": _render_markdown(plan)})
+    except PlanningServiceError:
+        raise
+    except Exception as exc:
+        raise PlanningServiceError("plan assembly") from exc
+
+
+def _search_flights(
+    requirements: TripRequirements,
+    providers: PlanningProviders,
+) -> list[FlightOption]:
+    """Call the configured flight provider with a safe failure boundary."""
+
+    try:
+        return providers.search_flights(requirements)
+    except Exception as exc:
+        raise PlanningServiceError("flight search") from exc
+
+
+def _search_hotels(
+    requirements: TripRequirements,
+    providers: PlanningProviders,
+) -> list[HotelOption]:
+    """Call the configured hotel provider with a safe failure boundary."""
+
+    try:
+        return providers.search_hotels(requirements)
+    except Exception as exc:
+        raise PlanningServiceError("hotel search") from exc
+
+
+def _search_attractions(
+    requirements: TripRequirements,
+    providers: PlanningProviders,
+) -> list[Attraction]:
+    """Call the configured attraction provider with a safe failure boundary."""
+
+    try:
+        return providers.search_attractions(requirements)
+    except Exception as exc:
+        raise PlanningServiceError("attraction search") from exc
+
+
+def _get_weather(
+    requirements: TripRequirements,
+    providers: PlanningProviders,
+) -> list[WeatherSummary]:
+    """Call the configured weather provider with a safe failure boundary."""
+
+    try:
+        return providers.get_weather(requirements)
+    except Exception as exc:
+        raise PlanningServiceError("weather lookup") from exc
+
+
+def _get_route(
+    hotel: HotelOption,
+    first_attraction: Attraction,
+    providers: PlanningProviders,
+) -> RouteSummary:
+    """Look up the first transfer without coupling planning to one city."""
+
+    try:
+        return providers.get_route(hotel.name, first_attraction.name)
+    except Exception as exc:
+        raise PlanningServiceError("route lookup") from exc
+
+
+def _build_daily_itinerary(
+    *,
+    requirements: TripRequirements,
+    hotel: HotelOption,
+    attractions: list[Attraction],
+    weather: list[WeatherSummary],
+    route: RouteSummary,
+    flight: FlightOption,
+) -> list[DailyItinerary]:
+    """Create one day entry per inclusive trip date using repeatable rules."""
+
+    weather_by_date = {summary.date: summary for summary in weather}
+    day_count = (requirements.end_date - requirements.start_date).days + 1
+    traveler_count = Decimal(requirements.travelers)
+    attraction_index = 0
+    itinerary: list[DailyItinerary] = []
+
+    for offset in range(day_count):
+        current_date = requirements.start_date + timedelta(days=offset)
+        daily_weather = weather_by_date.get(current_date)
+        if daily_weather is None:
+            raise PlanningServiceError("weather selection")
+
+        visit_count = 1 if offset == 0 else 2
+        daily_attractions = [
+            attractions[(attraction_index + index) % len(attractions)]
+            for index in range(visit_count)
+        ]
+        attraction_index += visit_count
+
+        activities: list[str] = []
+        if offset == 0:
+            activities.extend(
+                [
+                    (f"Arrive in {requirements.destination} on flight {flight.flight_number}"),
+                    f"Check in at {hotel.name}",
+                    (
+                        f"Travel to {route.destination} by "
+                        f"{route.transport_mode.value} ({route.duration_minutes} minutes)"
+                    ),
+                ]
+            )
+        activities.extend(
+            f"Visit {attraction.name} ({attraction.opening_hours})"
+            for attraction in daily_attractions
+        )
+        activities.append(
+            f"Weather: {daily_weather.condition}, "
+            f"{daily_weather.temperature_celsius:.1f} C, "
+            f"{daily_weather.rain_probability}% rain chance"
+        )
+
+        daily_cost = (
+            sum(
+                (attraction.estimated_cost for attraction in daily_attractions),
+                start=Decimal("0.00"),
+            )
+            * traveler_count
+        )
+        itinerary.append(
+            DailyItinerary(
+                day_number=offset + 1,
+                date=current_date,
+                title=f"{requirements.destination} day {offset + 1}: {daily_weather.condition}",
+                activities=activities,
+                estimated_cost=daily_cost,
+                currency=requirements.currency,
+            )
+        )
+
+    return itinerary
+
+
+def _build_budget_warning(
+    requirements: TripRequirements,
+    total_cost: Decimal,
+) -> str | None:
+    """Return a warning instead of rejecting a valid over-budget plan."""
+
+    if total_cost <= requirements.budget:
+        return None
+    difference = total_cost - requirements.budget
+    return (
+        f"Estimated total {total_cost:.2f} {requirements.currency.value} exceeds "
+        f"the budget by {difference:.2f} {requirements.currency.value}."
+    )
+
+
+def _render_markdown(plan: TravelPlan) -> str:
+    """Render the structured plan as beginner-readable Markdown."""
+
+    lines = [
+        f"# Mock travel plan: {plan.requirements.origin} to {plan.requirements.destination}",
+        "",
+        f"- Flight: {plan.flight.airline} {plan.flight.flight_number}",
+        f"- Hotel: {plan.hotel.name}",
+        f"- Estimated total: {plan.total_cost:.2f} {plan.currency.value}",
+    ]
+    if plan.budget_warning is not None:
+        lines.extend(["", f"> {plan.budget_warning}"])
+
+    for day in plan.daily_itinerary:
+        lines.extend(["", f"## Day {day.day_number} — {day.date.isoformat()}"])
+        lines.extend(f"- {activity}" for activity in day.activities)
+
+    return "\n".join(lines)

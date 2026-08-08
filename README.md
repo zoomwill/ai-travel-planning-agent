@@ -73,3 +73,7 @@ readiness API. Follow the beginner guide in
 
 Phase P03 adds the shared travel vocabulary and deterministic local provider data. It does not
 call real travel APIs or an LLM. Read [`docs/10_DOMAIN_MODELS.md`](docs/10_DOMAIN_MODELS.md).
+
+Phase P04 assembles those deterministic provider results into a complete mock travel plan and
+exposes `POST /api/v1/plans/mock`. It is an ordinary Python service, not an AI Agent, and makes no
+real travel or LLM calls. Follow [`docs/11_PLANNING_MVP.md`](docs/11_PLANNING_MVP.md).

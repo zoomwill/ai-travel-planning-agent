@@ -273,7 +273,7 @@ class DailyItinerary(DomainModel):
 
 
 class TravelPlan(DomainModel):
-    """A validated final-plan shape for future planning phases."""
+    """A validated deterministic travel plan returned by the planning service."""
 
     requirements: TripRequirements = Field(description="Requirements this plan must satisfy.")
     flight: FlightOption = Field(description="Selected flight option.")
@@ -284,6 +284,14 @@ class TravelPlan(DomainModel):
     )
     total_cost: Decimal = Field(gt=0, description="Estimated total cost of the plan.")
     currency: Currency = Field(description="Currency shared by all plan costs.")
+    budget_warning: str | None = Field(
+        default=None,
+        description="Plain-language warning when the estimate exceeds the requested budget.",
+    )
+    markdown: str = Field(
+        default="",
+        description="Human-readable Markdown rendering of the same structured plan.",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -331,6 +339,8 @@ class TravelPlan(DomainModel):
                     ],
                     "total_cost": "4460.00",
                     "currency": "CNY",
+                    "budget_warning": None,
+                    "markdown": "# Mock travel plan: Shanghai to Tokyo",
                 }
             ]
         }
