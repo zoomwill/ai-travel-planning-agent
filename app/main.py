@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from app.api.routes.health import router as health_router
+from app.api.routes.plans import router as plans_router
 from app.api.routes.readiness import router as readiness_router
 from app.core.config import Settings, get_settings
 from app.core.lifespan import create_lifespan
@@ -25,6 +26,7 @@ def create_app(
     application.state.settings = resolved_settings
     application.include_router(health_router)
     application.include_router(readiness_router)
+    application.include_router(plans_router)
     return application
 
 
