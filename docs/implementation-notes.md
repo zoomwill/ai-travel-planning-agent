@@ -158,3 +158,38 @@ Record deviations from source pseudocode and important engineering decisions her
   conditional branches, and there is no LLM, prompt, checkpointer, thread isolation, persistence,
   resume, memory, RAG, MCP, reviewer, SSE, or real travel API. `langchain-core` is a declared
   runtime foundation but no model or prompt component is used in this phase.
+
+### 2026-08-09 — Phase P06 local RAG and Retriever Agent
+
+- Source intent: Add a deterministic RAG pipeline and insert a Retriever Agent between Router and
+  Planner. This user-directed P06 moves basic RAG earlier than the repository plan, where P06 was
+  requirement collection and the fuller hybrid RAG design was P09.
+- Implemented approach: Load four local Markdown guides as LangChain `Document` objects, split
+  them into fixed overlapping chunks, create normalized 128-dimensional hashed bag-of-words
+  vectors, and upsert deterministic chunk IDs into the existing Chroma `travel_knowledge`
+  collection. The graph is now `START → router → retriever → planner → END`. The graph factory
+  accepts a retrieval callable so tests use fakes while the application uses Chroma. The Planner
+  continues to call P04 unchanged and only appends retrieved context to its Markdown output.
+- Why: The current user instruction takes precedence over the older phase sequence. Chroma 1.5.9's
+  current official Python API supports `HttpClient`, `get_or_create_collection`, `upsert`, and
+  `query` with caller-provided embeddings. `upsert` makes the explicit indexing script safely
+  repeatable without reset or collection deletion. No sentence-transformers dependency was added:
+  installing its Python package would not bundle chosen model weights, and downloading weights
+  would violate the offline, reproducible validation goal. An embedding Protocol leaves room for
+  a future local trained model.
+- Verification: Pure RAG, graph, and Agent API focused tests passed 30 tests without network
+  access. The existing infrastructure checker reported PostgreSQL accepting connections, Redis
+  `PONG`, and Chroma HTTP 200 ready. The explicit indexer upserted nine chunks from four Markdown
+  files; running it a second time left the real collection count at nine, proving deterministic
+  IDs and repeatable upsert behavior. A real `Tokyo photography trip` search returned four
+  chunks, and the real graph reached Planner with four context entries, a `6300.00 CNY` plan, and
+  a retrieved-knowledge Markdown section. A live Agent API request returned HTTP 200 with the same
+  plan and knowledge section, after which Uvicorn shut down cleanly with exit code 0. Final Ruff
+  lint and format checks passed, mypy found no issues in 49 application files, and the complete
+  ordinary suite passed 121 tests with one explicitly skipped Docker integration test.
+- Remaining limitation: Hash vectors provide lexical similarity rather than strong semantic
+  retrieval. This phase does not implement multi-query expansion, BM25, RRF, reranking,
+  parent-document mapping, or Redis caching from the full source design. Chroma's official sync
+  client sets its internal httpx timeout to `None`; the adapter adds a caller-visible thread
+  deadline, but Python cannot forcibly stop a client call already running in that background
+  thread. Retrieved text is visible in Markdown but does not change P04's structured itinerary.

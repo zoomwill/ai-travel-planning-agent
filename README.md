@@ -20,6 +20,7 @@ The screenshots describe a rich architecture and include many code-like examples
 - Validated travel-domain models for requirements and provider results.
 - Deterministic mock flight, hotel, attraction, weather, and route providers.
 - A deterministic LangGraph Router-to-Planner runtime with no real LLM dependency.
+- A local Markdown RAG pipeline backed by the existing Chroma service.
 - A project specification reconstructed from the screenshots.
 - A phase-by-phase beginner build plan.
 - A complete Codex prompt pack.
@@ -82,3 +83,8 @@ real travel or LLM calls. Follow [`docs/11_PLANNING_MVP.md`](docs/11_PLANNING_MV
 Phase P05 places the same planning service behind a typed LangGraph state and the fixed workflow
 `START → Router → Planner → END`. It adds `POST /api/v1/agents/plans` without adding an LLM,
 memory, RAG, MCP, or streaming. Read [`docs/12_AGENT_RUNTIME.md`](docs/12_AGENT_RUNTIME.md).
+
+Phase P06 adds deterministic Markdown loading, chunking, offline hash embeddings, persistent
+Chroma indexing, and a Retriever Agent. The graph now runs
+`START → Router → Retriever → Planner → END`. Follow
+[`docs/13_RAG_PIPELINE.md`](docs/13_RAG_PIPELINE.md).

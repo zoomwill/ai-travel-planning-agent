@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.domain.models import TravelPlan
+from app.graphs.graph import build_travel_planning_graph
 from app.main import create_app
 from tests.helpers import make_resource_fakes
 
@@ -22,7 +23,15 @@ def client() -> Iterator[TestClient]:
         del unused_settings
         return fakes.resources
 
-    application = create_app(settings=settings, resource_factory=resource_factory)
+    def retrieve_context(query: str) -> list[str]:
+        assert "Tokyo" in query
+        return ["Yanaka is suitable for street photography."]
+
+    application = create_app(
+        settings=settings,
+        resource_factory=resource_factory,
+        travel_graph=build_travel_planning_graph(retrieve_context),
+    )
     with TestClient(application) as test_client:
         yield test_client
 
@@ -52,6 +61,7 @@ def test_agent_plan_endpoint_returns_a_valid_travel_plan(client: TestClient) -> 
     assert plan.requirements.destination == "Tokyo"
     assert len(plan.daily_itinerary) == 5
     assert plan.total_cost > 0
+    assert "Yanaka is suitable for street photography." in plan.markdown
 
 
 def test_agent_plan_endpoint_is_deterministic(client: TestClient) -> None:

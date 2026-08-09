@@ -1,4 +1,4 @@
-"""Shared typed state passed between Phase P05 LangGraph nodes."""
+"""Shared typed state passed between deterministic LangGraph nodes."""
 
 from typing import Literal, TypedDict
 
@@ -16,5 +16,6 @@ class TravelPlanState(TypedDict, total=False):
     user_request: str
     requirements: TripRequirements
     next_agent: Literal["planner"] | None
+    retrieved_context: list[str]
     travel_plan: TravelPlan | None
     error: str | None

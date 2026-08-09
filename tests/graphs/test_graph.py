@@ -4,8 +4,15 @@ from datetime import date
 from decimal import Decimal
 
 from app.domain.models import Currency, TravelPlan, TripRequirements
-from app.graphs.graph import travel_planning_graph
+from app.graphs.graph import build_travel_planning_graph
 from app.graphs.state import TravelPlanState
+
+
+def retrieve_context(query: str) -> list[str]:
+    """Return fixed Paris knowledge without network access."""
+
+    assert "Paris" in query
+    return ["Montmartre offers sloping streets and broad city views."]
 
 
 def make_initial_state() -> TravelPlanState:
@@ -25,27 +32,35 @@ def make_initial_state() -> TravelPlanState:
         "user_request": "Shanghai to Paris travel plan",
         "requirements": requirements,
         "next_agent": None,
+        "retrieved_context": [],
         "travel_plan": None,
         "error": None,
     }
 
 
-def test_compiled_graph_runs_router_then_planner() -> None:
-    """One invocation reaches END with a validated travel plan."""
+def test_compiled_graph_runs_router_retriever_then_planner() -> None:
+    """One invocation retrieves context and reaches END with a valid plan."""
 
-    final_state = travel_planning_graph.invoke(make_initial_state())
+    graph = build_travel_planning_graph(retrieve_context)
+    final_state = graph.invoke(make_initial_state())
 
     assert final_state["next_agent"] == "planner"
     assert final_state["error"] is None
+    assert final_state["retrieved_context"] == [
+        "Montmartre offers sloping streets and broad city views."
+    ]
     assert isinstance(final_state["travel_plan"], TravelPlan)
     assert final_state["travel_plan"].requirements.destination == "Paris"
     assert len(final_state["travel_plan"].daily_itinerary) == 4
+    assert "## Retrieved travel knowledge" in final_state["travel_plan"].markdown
+    assert "Montmartre offers sloping streets" in final_state["travel_plan"].markdown
 
 
 def test_compiled_graph_is_deterministic() -> None:
     """The same graph state produces the same final state every time."""
 
-    first = travel_planning_graph.invoke(make_initial_state())
-    second = travel_planning_graph.invoke(make_initial_state())
+    graph = build_travel_planning_graph(retrieve_context)
+    first = graph.invoke(make_initial_state())
+    second = graph.invoke(make_initial_state())
 
     assert first == second
