@@ -129,3 +129,32 @@ Record deviations from source pseudocode and important engineering decisions her
   currencies. Preferences are carried in the response but do not alter ranking yet. All provider
   data remains invented and deterministic; no live availability or production readiness is
   claimed.
+
+### 2026-08-09 — Phase P05 deterministic LangGraph Agent runtime
+
+- Source intent: Introduce typed LangGraph orchestration around travel planning. The repository's
+  earlier P05 prompt described a development checkpointer and explicitly deferred Router work,
+  while the current user instruction instead requires a deterministic Router followed by Planner
+  and does not authorize persistence or memory.
+- Implemented approach: Declare `langgraph>=1.0,<2.0` and `langchain-core>=1.0,<2.0`, resolved to
+  LangGraph 1.2.10 and langchain-core 1.5.3 for this lockfile. Define a five-field
+  `TravelPlanState` `TypedDict`, deterministic Router and Planner node functions, and compile
+  `START → router → planner → END` with the current `StateGraph` Graph API. The Planner delegates
+  all plan creation to P04's `create_mock_travel_plan()`. FastAPI invokes the compiled graph at
+  `POST /api/v1/agents/plans` and returns the existing Pydantic `TravelPlan` response.
+- Why: The current user request takes precedence over the older phase prompt, so P05 now proves
+  the requested Router-to-Planner runtime but deliberately omits checkpointer persistence. The
+  official LangGraph v1 documentation supports `TypedDict` state, partial node updates,
+  `StateGraph`, `START`, `END`, `compile()`, and synchronous `invoke()`. LangGraph's generic
+  `Runnable.invoke()` surface is typed as `Any`, so the API boundary casts its known compiled-graph
+  result back to `TravelPlanState`; FastAPI still validates the final declared response model.
+- Verification: Focused graph and Agent API tests passed 13 tests. Final Ruff lint and format
+  checks passed, mypy found no issues in 43 application source files, and the complete ordinary
+  suite passed 104 tests with one explicitly skipped Docker integration test. A live Uvicorn POST
+  to `/api/v1/agents/plans` returned HTTP 200 with a five-day Tokyo `TravelPlan`, a total of
+  `6300.00 CNY`, and nonempty Markdown. Uvicorn then completed graceful application shutdown with
+  exit code 0.
+- Remaining limitation: Intent classification is fixed keyword matching, the graph has no
+  conditional branches, and there is no LLM, prompt, checkpointer, thread isolation, persistence,
+  resume, memory, RAG, MCP, reviewer, SSE, or real travel API. `langchain-core` is a declared
+  runtime foundation but no model or prompt component is used in this phase.

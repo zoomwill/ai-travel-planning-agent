@@ -17,6 +17,8 @@ dependencies = [
     "redis>=8.0.1,<9",
     "chromadb-client==1.5.9",
     "numpy>=2.4.6,<2.5",
+    "langgraph>=1.0,<2.0",
+    "langchain-core>=1.0,<2.0",
 ]
 
 [dependency-groups]

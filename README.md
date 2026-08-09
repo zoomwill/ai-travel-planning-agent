@@ -19,6 +19,7 @@ The screenshots describe a rich architecture and include many code-like examples
 - Docker Compose services for PostgreSQL, Redis, and Chroma.
 - Validated travel-domain models for requirements and provider results.
 - Deterministic mock flight, hotel, attraction, weather, and route providers.
+- A deterministic LangGraph Router-to-Planner runtime with no real LLM dependency.
 - A project specification reconstructed from the screenshots.
 - A phase-by-phase beginner build plan.
 - A complete Codex prompt pack.
@@ -77,3 +78,7 @@ call real travel APIs or an LLM. Read [`docs/10_DOMAIN_MODELS.md`](docs/10_DOMAI
 Phase P04 assembles those deterministic provider results into a complete mock travel plan and
 exposes `POST /api/v1/plans/mock`. It is an ordinary Python service, not an AI Agent, and makes no
 real travel or LLM calls. Follow [`docs/11_PLANNING_MVP.md`](docs/11_PLANNING_MVP.md).
+
+Phase P05 places the same planning service behind a typed LangGraph state and the fixed workflow
+`START → Router → Planner → END`. It adds `POST /api/v1/agents/plans` without adding an LLM,
+memory, RAG, MCP, or streaming. Read [`docs/12_AGENT_RUNTIME.md`](docs/12_AGENT_RUNTIME.md).
