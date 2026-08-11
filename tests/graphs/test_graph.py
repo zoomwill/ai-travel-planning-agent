@@ -3,6 +3,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.domain.models import Currency, TravelPlan, TripRequirements
 from app.graphs.graph import build_travel_planning_graph
 from app.graphs.state import TravelPlanState
@@ -38,11 +40,12 @@ def make_initial_state() -> TravelPlanState:
     }
 
 
-def test_compiled_graph_runs_router_retriever_then_planner() -> None:
+@pytest.mark.asyncio
+async def test_compiled_graph_runs_router_retriever_then_planner() -> None:
     """One invocation retrieves context and reaches END with a valid plan."""
 
     graph = build_travel_planning_graph(retrieve_context)
-    final_state = graph.invoke(make_initial_state())
+    final_state = await graph.ainvoke(make_initial_state())
 
     assert final_state["next_agent"] == "planner"
     assert final_state["error"] is None
@@ -56,11 +59,12 @@ def test_compiled_graph_runs_router_retriever_then_planner() -> None:
     assert "Montmartre offers sloping streets" in final_state["travel_plan"].markdown
 
 
-def test_compiled_graph_is_deterministic() -> None:
+@pytest.mark.asyncio
+async def test_compiled_graph_is_deterministic() -> None:
     """The same graph state produces the same final state every time."""
 
     graph = build_travel_planning_graph(retrieve_context)
-    first = graph.invoke(make_initial_state())
-    second = graph.invoke(make_initial_state())
+    first = await graph.ainvoke(make_initial_state())
+    second = await graph.ainvoke(make_initial_state())
 
     assert first == second

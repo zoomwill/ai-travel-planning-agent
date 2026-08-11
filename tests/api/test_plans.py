@@ -9,7 +9,7 @@ from app.core.config import Settings
 from app.domain.models import TravelPlan
 from app.main import create_app
 from app.services import planning_service
-from tests.helpers import make_resource_fakes
+from tests.helpers import make_in_memory_persistence_factory, make_resource_fakes
 
 
 @pytest.fixture
@@ -23,7 +23,11 @@ def client() -> Iterator[TestClient]:
         del unused_settings
         return fakes.resources
 
-    application = create_app(settings=settings, resource_factory=resource_factory)
+    application = create_app(
+        settings=settings,
+        resource_factory=resource_factory,
+        persistence_factory=make_in_memory_persistence_factory(),
+    )
     with TestClient(application) as test_client:
         yield test_client
 

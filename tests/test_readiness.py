@@ -9,7 +9,11 @@ from app.api.routes import readiness as readiness_module
 from app.core.config import Settings
 from app.core.resources import AppResources
 from app.main import create_app
-from tests.helpers import FakeChroma, make_resource_fakes
+from tests.helpers import (
+    FakeChroma,
+    make_in_memory_persistence_factory,
+    make_resource_fakes,
+)
 
 
 def make_client(
@@ -24,7 +28,11 @@ def make_client(
         return fakes.resources
 
     return TestClient(
-        create_app(settings=settings, resource_factory=resource_factory)
+        create_app(
+            settings=settings,
+            resource_factory=resource_factory,
+            persistence_factory=make_in_memory_persistence_factory(),
+        )
     ), fakes.resources
 
 

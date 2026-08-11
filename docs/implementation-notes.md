@@ -193,3 +193,45 @@ Record deviations from source pseudocode and important engineering decisions her
   client sets its internal httpx timeout to `None`; the adapter adds a caller-visible thread
   deadline, but Python cannot forcibly stop a client call already running in that background
   thread. Retrieved text is visible in Markdown but does not change P04's structured itinerary.
+
+### 2026-08-11 — Phase P07 durable checkpoints and explicit preference memory
+
+- Source intent: The repository's original P07 prompt describes parallel search subagents, while
+  the current user-directed P07 explicitly moves durable LangGraph PostgreSQL persistence and
+  long-term preference memory into this phase.
+- Implemented approach: Add the official `langgraph-checkpoint-postgres` package, resolved to
+  3.1.2, and use its async context-managed `AsyncPostgresSaver` and `AsyncPostgresStore`. FastAPI's
+  existing lifespan now owns the saver, store, and a graph compiled with both. The graph passes
+  `thread_id` only in RunnableConfig and passes `user_id` plus explicitly approved preference
+  values in a typed runtime context. Preference records use namespace
+  `(user_id, "travel_preferences")`, a deterministic hash ID, JSON-safe values, and duplicate
+  upsert. The graph is `START → Memory Context → Router → Retriever → Planner → END`; P04 planning
+  and P06 retrieval remain delegated to their existing implementations.
+- Why: The current instruction takes precedence over the earlier phase ordering. Current official
+  LangGraph APIs compile `StateGraph` with a checkpointer and store, inject typed context through
+  `Runtime`, and require `configurable.thread_id` for checkpoints. The PostgreSQL connector expects
+  a `postgresql://` URI rather than SQLAlchemy's `postgresql+psycopg://` dialect URL, so `Settings`
+  uses SQLAlchemy's structured URL builder for safe component encoding and wraps the rendered URI
+  in `SecretStr`. Local development selects `sslmode=disable`; deployments must choose an
+  appropriate verified TLS mode. Strict MessagePack is enabled before LangGraph import, graph
+  schemas derive the deserialization allowlist, and the saver explicitly sets
+  `pickle_fallback=False`.
+- Verification: Compose configuration parsing passed; PostgreSQL reported accepting connections,
+  Redis returned `PONG`, and Chroma returned HTTP 200 ready. The explicit saver/store setup script
+  passed twice, demonstrating idempotent official migrations. All focused offline P07 suites
+  passed. Final Ruff lint passed, Ruff confirmed all 134 Python files were formatted, mypy found
+  no issues in 56 application files, and the ordinary suite passed 153 tests with two explicitly
+  skipped integration tests. Enabling integration ran two tests successfully: readiness plus a
+  strict typed PostgreSQL checkpoint/store close-and-reopen round trip with isolated user data and
+  exact test-data cleanup. In live Uvicorn, a plan wrote six checkpoints; state, history, and the
+  explicit preference API returned HTTP 200 without auto-saving the current `photography`
+  requirement. After graceful shutdown and a new server process, the old state remained complete,
+  a second thread for the same user recalled `quiet neighborhoods`, another user saw no memory,
+  and the legacy Agent endpoint still returned its original direct `TravelPlan` shape. Both server
+  processes shut down cleanly with exit code 0, and the live test preference and three exact test
+  threads were removed afterward.
+- Remaining limitation: This is local development identity routing, not authentication or
+  authorization. Preference categories use simple deterministic keywords, not LLM extraction or
+  semantic memory. The old non-thread Agent endpoint remains stateless and does not save memory.
+  P07 adds no parallel subagents, reviewer loop, SSE, MCP, real travel provider, frontend, Alembic,
+  Redis memory, or Chroma memory.

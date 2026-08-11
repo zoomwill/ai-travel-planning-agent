@@ -1,14 +1,25 @@
 """Small test doubles for application-owned resources."""
 
 import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import cast
 
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import Settings
+from app.core.persistence import (
+    PersistenceFactory,
+    PersistenceResources,
+    create_strict_serializer,
+)
 from app.core.resources import AppResources
+from app.graphs.graph import build_travel_planning_graph
+from app.graphs.nodes.retriever import ContextRetriever
 from app.infrastructure.chroma import ChromaClientProvider
 
 
@@ -109,3 +120,28 @@ def make_resource_fakes(
         redis=fake_redis,
         chroma=fake_chroma,
     )
+
+
+def make_in_memory_persistence_factory(
+    context_retriever: ContextRetriever | None = None,
+) -> PersistenceFactory:
+    """Build isolated LangGraph persistence that never contacts Docker."""
+
+    retrieve = context_retriever or (lambda query: [])
+
+    @asynccontextmanager
+    async def factory(_: Settings) -> AsyncIterator[PersistenceResources]:
+        checkpointer = InMemorySaver(serde=create_strict_serializer())
+        store = InMemoryStore()
+        graph = build_travel_planning_graph(
+            retrieve,
+            checkpointer=checkpointer,
+            store=store,
+        )
+        yield PersistenceResources(
+            checkpointer=checkpointer,
+            store=store,
+            graph=graph,
+        )
+
+    return factory

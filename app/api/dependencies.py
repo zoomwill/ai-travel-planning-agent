@@ -7,6 +7,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import Settings
+from app.core.persistence import PersistenceResources
 from app.core.resources import AppResources
 from app.infrastructure.chroma import ChromaClientProvider
 
@@ -25,6 +26,16 @@ def get_app_resources(request: Request) -> AppResources:
     except AttributeError as exc:
         raise RuntimeError("application resources are not initialized") from exc
     return cast(AppResources, resources)
+
+
+def get_persistence_resources(request: Request) -> PersistenceResources:
+    """Return LangGraph resources created by the active application lifespan."""
+
+    try:
+        persistence = request.app.state.persistence
+    except AttributeError as exc:
+        raise RuntimeError("persistence resources are not initialized") from exc
+    return cast(PersistenceResources, persistence)
 
 
 def get_postgres_engine(

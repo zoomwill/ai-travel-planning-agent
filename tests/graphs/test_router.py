@@ -40,3 +40,16 @@ def test_router_does_not_misclassify_an_unrelated_request() -> None:
 
     assert update["next_agent"] is None
     assert update["error"] == "The request does not describe a travel plan."
+
+
+def test_router_preserves_an_upstream_persistence_error() -> None:
+    """A later node must not erase a Memory Context failure."""
+
+    update = router_node(
+        {
+            "user_request": "plan Tokyo trip",
+            "error": "store_unavailable",
+        }
+    )
+
+    assert update == {"next_agent": None, "error": "store_unavailable"}

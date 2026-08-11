@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 from app.core.resources import AppResources
 from app.main import create_app
-from tests.helpers import make_resource_fakes
+from tests.helpers import make_in_memory_persistence_factory, make_resource_fakes
 
 
 @pytest.mark.parametrize("path", ["/health", "/health/live"])
@@ -17,7 +17,11 @@ def test_health_does_not_contact_external_services(path: str) -> None:
     async def resource_factory(_: Settings) -> AppResources:
         return fakes.resources
 
-    app = create_app(settings=settings, resource_factory=resource_factory)
+    app = create_app(
+        settings=settings,
+        resource_factory=resource_factory,
+        persistence_factory=make_in_memory_persistence_factory(),
+    )
     with TestClient(app) as client:
         response = client.get(path)
 

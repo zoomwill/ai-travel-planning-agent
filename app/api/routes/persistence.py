@@ -1,0 +1,305 @@
+"""HTTP boundaries for durable graph threads and explicit user memory."""
+
+import re
+from typing import Any, NoReturn, cast
+
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from langchain_core.runnables import RunnableConfig
+from langgraph.types import StateSnapshot
+
+from app.core.persistence import PersistenceResources
+from app.domain.models import TravelPlan
+from app.graphs.context import TravelRuntimeContext
+from app.graphs.state import TravelPlanState
+from app.memory.models import PreferenceMemory
+from app.memory.preferences import delete_user_preference, list_user_preferences
+from app.schemas.persistence import (
+    ThreadHistoryItem,
+    ThreadHistoryResponse,
+    ThreadPlanRequest,
+    ThreadPlanResponse,
+    ThreadStateResponse,
+)
+
+router = APIRouter(tags=["persistence"])
+
+_THREAD_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_USER_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def _raise_api_error(http_status: int, code: str, message: str) -> NoReturn:
+    """Raise a stable error without including an underlying exception or DSN."""
+
+    raise HTTPException(
+        status_code=http_status,
+        detail={"code": code, "message": message},
+    )
+
+
+def _validate_thread_id(thread_id: str) -> str:
+    """Accept bounded identifiers containing only URL- and log-safe characters."""
+
+    if _THREAD_ID_PATTERN.fullmatch(thread_id) is None:
+        _raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_thread_id",
+            "thread_id must be 1-128 safe characters: letters, numbers, "
+            "dot, underscore, or hyphen.",
+        )
+    return thread_id
+
+
+def _validate_user_id(user_id: str) -> str:
+    """Accept a bounded local user identifier without pretending it is authentication."""
+
+    if _USER_ID_PATTERN.fullmatch(user_id) is None:
+        _raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_user_id",
+            "user_id must be 1-64 safe characters: letters, numbers, dot, underscore, or hyphen.",
+        )
+    return user_id
+
+
+def _get_persistence(request: Request) -> PersistenceResources:
+    """Read application-owned persistence or return a stable initialization error."""
+
+    try:
+        return cast(PersistenceResources, request.app.state.persistence)
+    except AttributeError:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "persistence_not_initialized",
+            "The persistence runtime is not initialized.",
+        )
+
+
+def _thread_config(thread_id: str) -> RunnableConfig:
+    """Build the LangGraph configurable section used as the checkpoint key."""
+
+    return {"configurable": {"thread_id": thread_id}}
+
+
+def _make_initial_state(payload: ThreadPlanRequest) -> TravelPlanState:
+    """Build a complete beginner-readable state for a persistent graph invocation."""
+
+    preferences = ", ".join(payload.requirements.preferences) or "none"
+    return {
+        "user_request": (
+            f"Plan a trip from {payload.requirements.origin} "
+            f"to {payload.requirements.destination}. Preferences: {preferences}."
+        ),
+        "requirements": payload.requirements,
+        "next_agent": None,
+        "remembered_preferences": [],
+        "retrieved_context": [],
+        "travel_plan": None,
+        "error": None,
+    }
+
+
+def _state_status(values: dict[str, Any], next_nodes: tuple[str, ...] = ()) -> str:
+    """Translate graph values into a small public status vocabulary."""
+
+    if values.get("error"):
+        return "error"
+    if values.get("travel_plan") is not None:
+        return "complete"
+    if next_nodes:
+        return "running"
+    return "empty"
+
+
+def _snapshot_checkpoint_id(snapshot: StateSnapshot) -> str:
+    """Read a checkpoint ID without exposing the rest of its runnable config."""
+
+    configurable = snapshot.config.get("configurable", {})
+    checkpoint_id = configurable.get("checkpoint_id", "")
+    return str(checkpoint_id)
+
+
+@router.post(
+    "/api/v1/agents/threads/{thread_id}/plans",
+    response_model=ThreadPlanResponse,
+)
+async def create_thread_plan(
+    thread_id: str,
+    payload: ThreadPlanRequest,
+    request: Request,
+) -> ThreadPlanResponse:
+    """Run one plan with durable checkpoints and explicit user memory."""
+
+    validated_thread_id = _validate_thread_id(thread_id)
+    validated_user_id = _validate_user_id(payload.user_id)
+    persistence = _get_persistence(request)
+    context = TravelRuntimeContext(
+        user_id=validated_user_id,
+        preferences_to_remember=tuple(payload.remember_preferences),
+    )
+    try:
+        result = await persistence.graph.ainvoke(
+            _make_initial_state(payload),
+            config=_thread_config(validated_thread_id),
+            context=context,
+        )
+    except Exception:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "checkpoint_unavailable",
+            "The persistent graph could not complete the request.",
+        )
+
+    final_state = cast(TravelPlanState, result)
+    error = final_state.get("error")
+    if error in {"store_unavailable", "checkpoint_unavailable"}:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            error,
+            "The persistence runtime could not complete the request.",
+        )
+    travel_plan = final_state.get("travel_plan")
+    if travel_plan is None:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "checkpoint_unavailable",
+            "The persistent Planner Agent did not return a plan.",
+        )
+    return ThreadPlanResponse(
+        thread_id=validated_thread_id,
+        user_id=validated_user_id,
+        travel_plan=travel_plan,
+        remembered_preferences=final_state.get("remembered_preferences", []),
+    )
+
+
+@router.get(
+    "/api/v1/agents/threads/{thread_id}/state",
+    response_model=ThreadStateResponse,
+)
+async def get_thread_state(thread_id: str, request: Request) -> ThreadStateResponse:
+    """Return a safe projection of the latest durable checkpoint."""
+
+    validated_thread_id = _validate_thread_id(thread_id)
+    persistence = _get_persistence(request)
+    try:
+        snapshot = await persistence.graph.aget_state(_thread_config(validated_thread_id))
+    except Exception:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "checkpoint_unavailable",
+            "The latest checkpoint could not be read.",
+        )
+    values = cast(dict[str, Any], snapshot.values)
+    if not values:
+        _raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            "checkpoint_unavailable",
+            "No checkpoint exists for this thread.",
+        )
+    travel_plan_value = values.get("travel_plan")
+    travel_plan = (
+        TravelPlan.model_validate(travel_plan_value) if travel_plan_value is not None else None
+    )
+    return ThreadStateResponse(
+        thread_id=validated_thread_id,
+        status=cast(Any, _state_status(values, snapshot.next)),
+        user_request=values.get("user_request"),
+        next_agent=values.get("next_agent"),
+        remembered_preferences=values.get("remembered_preferences", []),
+        travel_plan=travel_plan,
+        error=values.get("error"),
+    )
+
+
+@router.get(
+    "/api/v1/agents/threads/{thread_id}/history",
+    response_model=ThreadHistoryResponse,
+)
+async def get_thread_history(
+    thread_id: str,
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> ThreadHistoryResponse:
+    """Return bounded, newest-first checkpoint summaries."""
+
+    validated_thread_id = _validate_thread_id(thread_id)
+    persistence = _get_persistence(request)
+    checkpoints: list[ThreadHistoryItem] = []
+    try:
+        async for snapshot in persistence.graph.aget_state_history(
+            _thread_config(validated_thread_id),
+            limit=limit,
+        ):
+            values = cast(dict[str, Any], snapshot.values)
+            checkpoints.append(
+                ThreadHistoryItem(
+                    checkpoint_id=_snapshot_checkpoint_id(snapshot),
+                    created_at=snapshot.created_at,
+                    next=list(snapshot.next),
+                    tasks=[task.name for task in snapshot.tasks],
+                    status=cast(Any, _state_status(values, snapshot.next)),
+                )
+            )
+    except Exception:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "checkpoint_unavailable",
+            "Checkpoint history could not be read.",
+        )
+    return ThreadHistoryResponse(
+        thread_id=validated_thread_id,
+        checkpoints=checkpoints,
+    )
+
+
+@router.get(
+    "/api/v1/users/{user_id}/preferences",
+    response_model=list[PreferenceMemory],
+)
+async def get_user_preferences(user_id: str, request: Request) -> list[PreferenceMemory]:
+    """List only the preferences in the requested user's namespace."""
+
+    validated_user_id = _validate_user_id(user_id)
+    persistence = _get_persistence(request)
+    try:
+        return await list_user_preferences(persistence.store, validated_user_id)
+    except Exception:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "store_unavailable",
+            "User preferences could not be read.",
+        )
+
+
+@router.delete(
+    "/api/v1/users/{user_id}/preferences/{preference_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_preference(
+    user_id: str,
+    preference_id: str,
+    request: Request,
+) -> Response:
+    """Delete one preference without touching the rest of the namespace."""
+
+    validated_user_id = _validate_user_id(user_id)
+    persistence = _get_persistence(request)
+    try:
+        deleted = await delete_user_preference(
+            persistence.store,
+            user_id=validated_user_id,
+            preference_id=preference_id,
+        )
+    except Exception:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "store_unavailable",
+            "The preference could not be deleted.",
+        )
+    if not deleted:
+        _raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            "preference_not_found",
+            "The requested preference does not exist for this user.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

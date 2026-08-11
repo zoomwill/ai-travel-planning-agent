@@ -16,6 +16,7 @@ class TravelPlanState(TypedDict, total=False):
     user_request: str
     requirements: TripRequirements
     next_agent: Literal["planner"] | None
+    remembered_preferences: list[str]
     retrieved_context: list[str]
     travel_plan: TravelPlan | None
     error: str | None

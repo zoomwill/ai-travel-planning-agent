@@ -5,6 +5,7 @@ from typing import cast
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.domain.models import TravelPlan, TripRequirements
+from app.graphs.context import TravelRuntimeContext
 from app.graphs.graph import TravelPlanningGraph
 from app.graphs.state import TravelPlanState
 
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
     status_code=status.HTTP_200_OK,
     summary="Create a deterministic plan through LangGraph",
 )
-def create_agent_plan(request: Request, requirements: TripRequirements) -> TravelPlan:
+async def create_agent_plan(request: Request, requirements: TripRequirements) -> TravelPlan:
     """Run validated requirements through Router, Retriever, and Planner nodes."""
 
     preferences = ", ".join(requirements.preferences) or "none"
@@ -29,6 +30,7 @@ def create_agent_plan(request: Request, requirements: TripRequirements) -> Trave
         ),
         "requirements": requirements,
         "next_agent": None,
+        "remembered_preferences": [],
         "retrieved_context": [],
         "travel_plan": None,
         "error": None,
@@ -36,7 +38,13 @@ def create_agent_plan(request: Request, requirements: TripRequirements) -> Trave
 
     try:
         graph = cast(TravelPlanningGraph, request.app.state.travel_planning_graph)
-        final_state = cast(TravelPlanState, graph.invoke(initial_state))
+        final_state = cast(
+            TravelPlanState,
+            await graph.ainvoke(
+                initial_state,
+                context=TravelRuntimeContext(user_id="anonymous"),
+            ),
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

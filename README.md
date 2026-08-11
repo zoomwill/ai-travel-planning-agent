@@ -43,6 +43,7 @@ Start Docker Desktop, start the three P01 services, and then start the applicati
 
 ```bash
 docker compose up -d --wait --wait-timeout 120
+uv run python scripts/setup_langgraph_persistence.py
 uv run uvicorn app.main:app --reload
 ```
 
@@ -88,3 +89,10 @@ Phase P06 adds deterministic Markdown loading, chunking, offline hash embeddings
 Chroma indexing, and a Retriever Agent. The graph now runs
 `START → Router → Retriever → Planner → END`. Follow
 [`docs/13_RAG_PIPELINE.md`](docs/13_RAG_PIPELINE.md).
+
+Phase P07 adds durable PostgreSQL checkpoints and explicit, user-approved preference memory. The
+graph now runs `START → Memory Context → Router → Retriever → Planner → END`. Existing
+`POST /api/v1/agents/plans` callers remain compatible; new thread, state, history, preference-list,
+and single-item-delete APIs are documented in
+[`docs/14_PERSISTENCE_AND_MEMORY.md`](docs/14_PERSISTENCE_AND_MEMORY.md). Run the explicit setup
+script before starting the P07 application for the first time.

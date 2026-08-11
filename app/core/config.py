@@ -1,6 +1,7 @@
 """Type-safe application settings loaded from environment variables."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,6 +20,9 @@ class Settings(BaseSettings):
     postgres_db: str = "travel_planner"
     postgres_host: str = "127.0.0.1"
     postgres_port: int = Field(default=5432, ge=1, le=65535)
+    postgres_sslmode: Literal[
+        "disable", "allow", "prefer", "require", "verify-ca", "verify-full"
+    ] = "disable"
 
     redis_host: str = "127.0.0.1"
     redis_port: int = Field(default=6379, ge=1, le=65535)
@@ -48,6 +52,21 @@ class Settings(BaseSettings):
             port=self.postgres_port,
             database=self.postgres_db,
         )
+
+    @property
+    def langgraph_postgres_uri(self) -> SecretStr:
+        """Build the official PostgreSQL URI expected by LangGraph connectors."""
+
+        uri = URL.create(
+            drivername="postgresql",
+            username=self.postgres_user,
+            password=self.postgres_password.get_secret_value(),
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+            query={"sslmode": self.postgres_sslmode},
+        )
+        return SecretStr(uri.render_as_string(hide_password=False))
 
 
 @lru_cache

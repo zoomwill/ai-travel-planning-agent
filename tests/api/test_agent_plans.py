@@ -9,7 +9,7 @@ from app.core.config import Settings
 from app.domain.models import TravelPlan
 from app.graphs.graph import build_travel_planning_graph
 from app.main import create_app
-from tests.helpers import make_resource_fakes
+from tests.helpers import make_in_memory_persistence_factory, make_resource_fakes
 
 
 @pytest.fixture
@@ -30,6 +30,7 @@ def client() -> Iterator[TestClient]:
     application = create_app(
         settings=settings,
         resource_factory=resource_factory,
+        persistence_factory=make_in_memory_persistence_factory(),
         travel_graph=build_travel_planning_graph(retrieve_context),
     )
     with TestClient(application) as test_client:

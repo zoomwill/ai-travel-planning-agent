@@ -39,6 +39,10 @@ def planner_node(state: TravelPlanState) -> TravelPlanState:
     if retrieved_context:
         travel_plan = _add_retrieved_context(travel_plan, retrieved_context)
 
+    remembered_preferences = state.get("remembered_preferences", [])
+    if remembered_preferences:
+        travel_plan = _add_remembered_preferences(travel_plan, remembered_preferences)
+
     return {
         "travel_plan": travel_plan,
         "error": None,
@@ -60,6 +64,28 @@ def _add_retrieved_context(
             "",
             "## Retrieved travel knowledge",
             *context_lines,
+        ]
+    )
+    return travel_plan.model_copy(update={"markdown": markdown})
+
+
+def _add_remembered_preferences(
+    travel_plan: TravelPlan,
+    remembered_preferences: list[str],
+) -> TravelPlan:
+    """Show which explicit cross-thread preferences were available to the Planner."""
+
+    preference_lines = [
+        f"- {preference.strip()}" for preference in remembered_preferences if preference.strip()
+    ]
+    if not preference_lines:
+        return travel_plan
+    markdown = "\n".join(
+        [
+            travel_plan.markdown,
+            "",
+            "## Remembered preferences",
+            *preference_lines,
         ]
     )
     return travel_plan.model_copy(update={"markdown": markdown})

@@ -29,7 +29,14 @@ def retriever_node(
         }
 
     try:
-        retrieved_context = context_retriever(user_request)
+        query_parts = [user_request]
+        requirements = state.get("requirements")
+        if requirements is not None and requirements.preferences:
+            query_parts.append("Current trip preferences: " + ", ".join(requirements.preferences))
+        remembered_preferences = state.get("remembered_preferences", [])
+        if remembered_preferences:
+            query_parts.append("Remembered preferences: " + ", ".join(remembered_preferences))
+        retrieved_context = context_retriever("\n".join(query_parts))
     except Exception:
         return {
             "retrieved_context": [],

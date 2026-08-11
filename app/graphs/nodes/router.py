@@ -18,6 +18,12 @@ _PLANNING_KEYWORDS: Final[tuple[str, ...]] = (
 def router_node(state: TravelPlanState) -> TravelPlanState:
     """Route a travel-planning request to the only P05 downstream node."""
 
+    if state.get("error") is not None:
+        return {
+            "next_agent": None,
+            "error": state["error"],
+        }
+
     user_request = state.get("user_request", "").strip().casefold()
     if not user_request:
         return {
