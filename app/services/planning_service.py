@@ -1,6 +1,6 @@
 """Deterministically assemble a travel plan from the Phase P03 providers."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
@@ -76,10 +76,41 @@ def create_mock_travel_plan(
         raise PlanningServiceError("hotel selection")
     if not attractions:
         raise PlanningServiceError("attraction selection")
+    if not weather:
+        raise PlanningServiceError("weather selection")
 
-    flight = flights[0]
-    hotel = max(hotels, key=lambda option: option.rating)
-    route = _get_route(hotel, attractions[0], providers)
+    route = _get_route(requirements, providers)
+    return assemble_travel_plan_from_results(
+        requirements=requirements,
+        flight_options=flights,
+        hotel_options=hotels,
+        attractions=attractions,
+        weather=weather,
+        route=route,
+    )
+
+
+def assemble_travel_plan_from_results(
+    *,
+    requirements: TripRequirements,
+    flight_options: list[FlightOption],
+    hotel_options: list[HotelOption],
+    attractions: list[Attraction],
+    weather: list[WeatherSummary],
+    route: RouteSummary | None,
+    retrieved_context: Sequence[str] = (),
+    remembered_preferences: Sequence[str] = (),
+    unavailable_searches: Sequence[str] = (),
+) -> TravelPlan:
+    """Combine validated search results without calling any provider."""
+
+    if not flight_options:
+        raise PlanningServiceError("flight selection")
+    if not hotel_options:
+        raise PlanningServiceError("hotel selection")
+
+    flight = flight_options[0]
+    hotel = max(hotel_options, key=lambda option: option.rating)
 
     try:
         daily_itinerary = _build_daily_itinerary(
@@ -106,7 +137,13 @@ def create_mock_travel_plan(
             currency=requirements.currency,
             budget_warning=budget_warning,
         )
-        return plan.model_copy(update={"markdown": _render_markdown(plan)})
+        plan = plan.model_copy(update={"markdown": _render_markdown(plan)})
+        return _add_context_sections(
+            plan,
+            retrieved_context=retrieved_context,
+            remembered_preferences=remembered_preferences,
+            unavailable_searches=unavailable_searches,
+        )
     except PlanningServiceError:
         raise
     except Exception as exc:
@@ -162,14 +199,13 @@ def _get_weather(
 
 
 def _get_route(
-    hotel: HotelOption,
-    first_attraction: Attraction,
+    requirements: TripRequirements,
     providers: PlanningProviders,
 ) -> RouteSummary:
-    """Look up the first transfer without coupling planning to one city."""
+    """Look up the independent trip origin-to-destination route."""
 
     try:
-        return providers.get_route(hotel.name, first_attraction.name)
+        return providers.get_route(requirements.origin, requirements.destination)
     except Exception as exc:
         raise PlanningServiceError("route lookup") from exc
 
@@ -180,7 +216,7 @@ def _build_daily_itinerary(
     hotel: HotelOption,
     attractions: list[Attraction],
     weather: list[WeatherSummary],
-    route: RouteSummary,
+    route: RouteSummary | None,
     flight: FlightOption,
 ) -> list[DailyItinerary]:
     """Create one day entry per inclusive trip date using repeatable rules."""
@@ -194,15 +230,14 @@ def _build_daily_itinerary(
     for offset in range(day_count):
         current_date = requirements.start_date + timedelta(days=offset)
         daily_weather = weather_by_date.get(current_date)
-        if daily_weather is None:
-            raise PlanningServiceError("weather selection")
-
         visit_count = 1 if offset == 0 else 2
-        daily_attractions = [
-            attractions[(attraction_index + index) % len(attractions)]
-            for index in range(visit_count)
-        ]
-        attraction_index += visit_count
+        daily_attractions: list[Attraction] = []
+        if attractions:
+            daily_attractions = [
+                attractions[(attraction_index + index) % len(attractions)]
+                for index in range(visit_count)
+            ]
+            attraction_index += visit_count
 
         activities: list[str] = []
         if offset == 0:
@@ -210,21 +245,31 @@ def _build_daily_itinerary(
                 [
                     (f"Arrive in {requirements.destination} on flight {flight.flight_number}"),
                     f"Check in at {hotel.name}",
-                    (
-                        f"Travel to {route.destination} by "
-                        f"{route.transport_mode.value} ({route.duration_minutes} minutes)"
-                    ),
                 ]
             )
+            if route is None:
+                activities.append("Route information unavailable.")
+            else:
+                activities.append(
+                    f"Route estimate from {route.origin} to {route.destination} by "
+                    f"{route.transport_mode.value} ({route.duration_minutes} minutes)"
+                )
         activities.extend(
             f"Visit {attraction.name} ({attraction.opening_hours})"
             for attraction in daily_attractions
         )
-        activities.append(
-            f"Weather: {daily_weather.condition}, "
-            f"{daily_weather.temperature_celsius:.1f} C, "
-            f"{daily_weather.rain_probability}% rain chance"
-        )
+        if not daily_attractions:
+            activities.append("Attraction information unavailable.")
+        if daily_weather is None:
+            activities.append("Weather information unavailable.")
+            day_condition = "flexible schedule"
+        else:
+            activities.append(
+                f"Weather: {daily_weather.condition}, "
+                f"{daily_weather.temperature_celsius:.1f} C, "
+                f"{daily_weather.rain_probability}% rain chance"
+            )
+            day_condition = daily_weather.condition
 
         daily_cost = (
             sum(
@@ -237,7 +282,7 @@ def _build_daily_itinerary(
             DailyItinerary(
                 day_number=offset + 1,
                 date=current_date,
-                title=f"{requirements.destination} day {offset + 1}: {daily_weather.condition}",
+                title=f"{requirements.destination} day {offset + 1}: {day_condition}",
                 activities=activities,
                 estimated_cost=daily_cost,
                 currency=requirements.currency,
@@ -280,3 +325,40 @@ def _render_markdown(plan: TravelPlan) -> str:
         lines.extend(f"- {activity}" for activity in day.activities)
 
     return "\n".join(lines)
+
+
+def _add_context_sections(
+    plan: TravelPlan,
+    *,
+    retrieved_context: Sequence[str],
+    remembered_preferences: Sequence[str],
+    unavailable_searches: Sequence[str],
+) -> TravelPlan:
+    """Append graph context and explicit degraded-plan notices to Markdown."""
+
+    sections: list[str] = []
+    context_lines = [context.strip() for context in retrieved_context if context.strip()]
+    if context_lines:
+        sections.extend(["## Retrieved travel knowledge", *(f"- {line}" for line in context_lines)])
+
+    preference_lines = [
+        preference.strip() for preference in remembered_preferences if preference.strip()
+    ]
+    if preference_lines:
+        sections.extend(["## Remembered preferences", *(f"- {line}" for line in preference_lines)])
+
+    unavailable = sorted(set(unavailable_searches))
+    if unavailable:
+        sections.extend(
+            [
+                "## Search limitations",
+                *(
+                    f"- {kind} information is unavailable; this plan does not invent it."
+                    for kind in unavailable
+                ),
+            ]
+        )
+
+    if not sections:
+        return plan
+    return plan.model_copy(update={"markdown": "\n\n".join([plan.markdown, "\n".join(sections)])})

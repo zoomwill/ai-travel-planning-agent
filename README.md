@@ -96,3 +96,8 @@ graph now runs `START → Memory Context → Router → Retriever → Planner �
 and single-item-delete APIs are documented in
 [`docs/14_PERSISTENCE_AND_MEMORY.md`](docs/14_PERSISTENCE_AND_MEMORY.md). Run the explicit setup
 script before starting the P07 application for the first time.
+
+Phase P08 uses LangGraph `Send` to fan one request out to deterministic flight, hotel, attraction,
+weather, and route search subagents. Custom reducers merge their JSON-safe updates, `Overwrite`
+clears old search state on a reused persistent thread, and an aggregator fans the branches back in
+before Planner. Read [`docs/15_PARALLEL_SEARCH_SUBAGENTS.md`](docs/15_PARALLEL_SEARCH_SUBAGENTS.md).

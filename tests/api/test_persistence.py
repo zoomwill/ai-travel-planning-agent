@@ -10,7 +10,9 @@ from app.api.routes import persistence as persistence_routes
 from app.core.config import Settings
 from app.core.resources import AppResources
 from app.main import create_app
+from app.search.models import SearchKind
 from tests.helpers import make_in_memory_persistence_factory, make_resource_fakes
+from tests.search.helpers import RecordingSearchBackend
 
 
 @pytest.fixture
@@ -37,6 +39,7 @@ def client() -> Iterator[TestClient]:
 def payload(
     *,
     user_id: str = "user-a",
+    destination: str = "Tokyo",
     remember_preferences: list[str] | None = None,
 ) -> dict[str, object]:
     """Return a valid nested persistent-plan request."""
@@ -45,7 +48,7 @@ def payload(
         "user_id": user_id,
         "requirements": {
             "origin": "Shanghai",
-            "destination": "Tokyo",
+            "destination": destination,
             "start_date": "2026-09-01",
             "end_date": "2026-09-03",
             "budget": "10000.00",
@@ -70,10 +73,22 @@ def test_thread_plan_state_and_history_are_available(client: TestClient) -> None
     assert plan.status_code == 200
     assert plan.json()["thread_id"] == "thread-one"
     assert plan.json()["remembered_preferences"] == ["Quiet neighborhoods"]
+    assert plan.json()["search_summary"] == {
+        "flights": {"status": "ok", "count": 2},
+        "hotels": {"status": "ok", "count": 2},
+        "attractions": {"status": "ok", "count": 3},
+        "weather": {"status": "ok", "count": 3},
+        "route": {"status": "ok", "count": 1},
+    }
+    assert plan.json()["tool_errors"] == []
     assert "## Remembered preferences" in plan.json()["travel_plan"]["markdown"]
     assert state.status_code == 200
     assert state.json()["status"] == "complete"
+    assert state.json()["search_result_count"] == 5
+    assert state.json()["tool_error_count"] == 0
+    assert state.json()["search_summary"] == plan.json()["search_summary"]
     assert "configurable" not in state.text
+    assert "search_task" not in state.text
     assert history.status_code == 200
     assert len(history.json()["checkpoints"]) == 3
     assert all(item["checkpoint_id"] for item in history.json()["checkpoints"])
@@ -99,6 +114,28 @@ def test_same_user_cross_thread_recall_and_other_user_isolation(
 
     assert same_user.json()["remembered_preferences"] == ["Local food"]
     assert other_user.json()["remembered_preferences"] == []
+
+
+def test_same_thread_second_http_request_contains_only_new_destination(
+    client: TestClient,
+) -> None:
+    """Persistent API input starts a new graph run and Prepare clears old search state."""
+
+    first = client.post(
+        "/api/v1/agents/threads/reused-thread/plans",
+        json=payload(destination="Tokyo"),
+    )
+    second = client.post(
+        "/api/v1/agents/threads/reused-thread/plans",
+        json=payload(destination="Paris"),
+    )
+    state = client.get("/api/v1/agents/threads/reused-thread/state")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["travel_plan"]["requirements"]["destination"] == "Paris"
+    assert state.json()["travel_plan"]["requirements"]["destination"] == "Paris"
+    assert state.json()["search_result_count"] == 5
 
 
 def test_only_explicit_preferences_are_listed(client: TestClient) -> None:
@@ -206,3 +243,32 @@ def test_store_exception_is_sanitized(
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "store_unavailable"
     assert private_detail not in response.text
+
+
+def test_critical_search_exception_returns_sanitized_503() -> None:
+    """Provider exception text stays out of the structured persistent API error."""
+
+    settings = Settings(_env_file=None)
+    fakes = make_resource_fakes(settings)
+
+    async def resource_factory(_: Settings) -> AppResources:
+        return fakes.resources
+
+    application = create_app(
+        settings=settings,
+        resource_factory=resource_factory,
+        persistence_factory=make_in_memory_persistence_factory(
+            lambda query: [],
+            search_backend=RecordingSearchBackend(fail_kind=SearchKind.FLIGHTS),
+        ),
+    )
+    with TestClient(application) as test_client:
+        response = test_client.post(
+            "/api/v1/agents/threads/critical-thread/plans",
+            json=payload(),
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "critical_search_failed"
+    assert "private backend detail" not in response.text
+    assert "traceback" not in response.text.casefold()

@@ -235,3 +235,55 @@ Record deviations from source pseudocode and important engineering decisions her
   semantic memory. The old non-thread Agent endpoint remains stateless and does not save memory.
   P07 adds no parallel subagents, reviewer loop, SSE, MCP, real travel provider, frontend, Alembic,
   Redis memory, or Chroma memory.
+
+### 2026-08-12 — Phase P08 parallel travel search subagents
+
+- Source intent: The source architecture calls for independent flight, hotel, attraction,
+  weather, and map/route subagents with reducer-safe parallel writes. The repository's original
+  phase plan calls that work P07 and reserves P08 for a reviewer loop; the current user instruction
+  treats durable persistence as completed P07 and explicitly assigns parallel search to P08.
+- Implemented approach: Use LangGraph 1.2.10's current Graph API. Prepare creates five JSON-safe
+  deterministic tasks. A conditional edge returns five `Send("search_worker", payload)` packets;
+  the generic async worker uses an injected `SearchBackend` and writes only result or safe error
+  envelopes. Custom pure reducers deduplicate by task ID, choose unexpected duplicate values by
+  canonical JSON, and sort by fixed kind order. Prepare uses `Overwrite` once per reducer channel
+  to reset tasks, results, errors, and summary before a new run on a reused thread. One fan-in
+  aggregator creates stable counts before Planner.
+- Why: Official LangGraph documentation defines `Send` as its map-reduce fan-out API, TypedDict
+  `Annotated` functions as per-field reducers, and `Overwrite` as the reducer bypass for reset.
+  The worker is registered with the current `StateGraph.add_node(..., input_schema=...)` API so its
+  payload contains only one task and JSON-safe requirements. The installed mypy surface cannot
+  express that valid async callable with a narrower input schema, so the callable is cast only at
+  this library boundary; runtime graph and barrier tests exercise the real registration.
+- Planning-service deviation: P04's provider-running entry point remains, but plan selection,
+  itinerary, cost, budget warning, context Markdown, and degradation now live in one pure
+  `assemble_travel_plan_from_results()` function. The Agent Planner validates checkpoint JSON back
+  into domain models and calls only that function. To keep route search independent of hotel and
+  attraction branches, both P04 and P08 now query the route for the trip origin and destination;
+  the old implementation queried the selected hotel to the first attraction. Route remains
+  descriptive and excluded from cost.
+- Failure policy: Flights and hotels are critical; missing or invalid results keep sibling state
+  but prevent a plan and produce sanitized HTTP 503. Attractions, weather, and route are
+  non-critical; their failures keep a `SearchErrorEnvelope` and produce a degraded TravelPlan
+  whose activities and Markdown explicitly say information is unavailable.
+- Verification: Focused offline P08 and compatibility tests passed 64 tests. The complete ordinary
+  suite passed 185 tests with two integration tests skipped. The barrier backend released its
+  Event only after all five methods entered, proving concurrent fan-out structure without using a
+  timing benchmark. Explicit Docker integration passed two tests and verified PostgreSQL
+  close/reopen round-trip, five unique result tasks, same-thread Tokyo-to-Paris reset, history,
+  cross-thread user memory, user isolation, and strict MessagePack. Live Uvicorn acceptance
+  returned HTTP 200 for a five-day Tokyo request with search counts 2/2/3/5/1, zero tool errors,
+  retrieved knowledge, and two explicitly remembered preferences. A second request on the same
+  thread returned a Tokyo-to-Paris plan with five unique current-request results and no old Tokyo
+  destination data; the legacy Agent endpoint still returned its direct TravelPlan shape. State
+  was complete, bounded history contained checkpoints, exact acceptance records were deleted and
+  verified absent, and Uvicorn shut down cleanly with exit code 0. Compose parsing, all three
+  infrastructure checks, and the idempotent saver/store setup passed; the existing Chroma
+  `travel_knowledge` collection retained nine records. Final Ruff lint passed, Ruff confirmed 149
+  Python files were formatted, mypy found no issues in 63 application files, and the complete
+  ordinary suite passed 185 tests with two explicitly skipped integration tests. Enabling the
+  integration marker passed two tests with 185 ordinary tests deselected.
+- Remaining limitation: Providers remain deterministic invented data. There is no LLM, reviewer,
+  SSE, MCP, real travel API, retry scheduler, authentication, frontend, or advanced RAG. No
+  latency, throughput, or performance improvement was measured; the barrier proves graph
+  concurrency, not speed.

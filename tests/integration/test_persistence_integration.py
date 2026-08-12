@@ -1,5 +1,6 @@
-"""Opt-in PostgreSQL round-trip test for P07 saver and store durability."""
+"""Opt-in PostgreSQL round-trip test for P07 memory and P08 search state."""
 
+import json
 import os
 from uuid import uuid4
 
@@ -13,9 +14,36 @@ from app.domain.models import TravelPlan, TripRequirements
 from app.graphs.context import TravelRuntimeContext
 from app.graphs.graph import build_travel_planning_graph
 from app.memory.preferences import list_user_preferences
+from app.search.models import SEARCH_KIND_ORDER, create_request_fingerprint
 from tests.graphs.test_persistence import config, make_state
 
 pytestmark = pytest.mark.integration
+
+
+def state_for_route(origin: str, destination: str):
+    """Build one complete graph input for an integration-test route."""
+
+    state = make_state()
+    state["requirements"] = state["requirements"].model_copy(
+        update={"origin": origin, "destination": destination}
+    )
+    state["user_request"] = f"{origin} to {destination} travel plan"
+    return state
+
+
+def assert_current_destination(search_results: list[dict[str, object]], destination: str) -> None:
+    """Confirm every result uses the current request rather than the old destination."""
+
+    for envelope in search_results:
+        kind = envelope["kind"]
+        data = envelope["data"]
+        assert isinstance(data, list) and data
+        if kind == "flights":
+            assert all(item["destination"] == destination for item in data)
+        elif kind in {"hotels", "attractions", "weather"}:
+            assert all(item["city"] == destination for item in data)
+        else:
+            assert data[0]["destination"] == destination
 
 
 @pytest.mark.skipif(
@@ -23,16 +51,19 @@ pytestmark = pytest.mark.integration
     reason="set RUN_INTEGRATION_TESTS=1 to check local PostgreSQL persistence",
 )
 @pytest.mark.asyncio
-async def test_postgres_checkpoint_and_store_survive_reopen() -> None:
-    """Official Postgres resources persist typed state and isolated user memory."""
+async def test_postgres_parallel_state_and_user_memory_survive_reopen() -> None:
+    """Official Postgres resources persist reset P08 state and isolated P07 memory."""
 
     assert os.getenv("LANGGRAPH_STRICT_MSGPACK") == "true"
     settings = Settings()
     uri = settings.langgraph_postgres_uri.get_secret_value()
     unique = uuid4().hex
-    thread_id = f"p07-{unique}-thread"
-    user_id = f"p07-{unique}-user"
-    other_user_id = f"p07-{unique}-other"
+    main_thread = f"p08-{unique}-main"
+    memory_thread = f"p08-{unique}-memory"
+    isolated_thread = f"p08-{unique}-isolated"
+    thread_ids = (main_thread, memory_thread, isolated_thread)
+    user_id = f"p08-{unique}-user"
+    other_user_id = f"p08-{unique}-other"
     preference_id = ""
 
     try:
@@ -48,15 +79,44 @@ async def test_postgres_checkpoint_and_store_survive_reopen() -> None:
                     checkpointer=saver,
                     store=store,
                 )
-                result = await graph.ainvoke(
-                    make_state(),
-                    config=config(thread_id),
+                first = await graph.ainvoke(
+                    state_for_route("Shanghai", "Tokyo"),
+                    config=config(main_thread),
                     context=TravelRuntimeContext(
                         user_id=user_id,
                         preferences_to_remember=("Quiet neighborhoods",),
                     ),
                 )
-                assert isinstance(result["travel_plan"], TravelPlan)
+                assert isinstance(first["travel_plan"], TravelPlan)
+                assert len(first["search_results"]) == 5
+                assert len({item["task_id"] for item in first["search_results"]}) == 5
+                assert all(entry["status"] == "ok" for entry in first["search_summary"].values())
+
+                second_state = state_for_route("Tokyo", "Paris")
+                second = await graph.ainvoke(
+                    second_state,
+                    config=config(main_thread),
+                    context=TravelRuntimeContext(user_id=user_id),
+                )
+                expected_fingerprint = create_request_fingerprint(second_state["requirements"])
+                assert len(second["search_results"]) == 5
+                assert {task["request_fingerprint"] for task in second["search_tasks"]} == {
+                    expected_fingerprint
+                }
+                assert_current_destination(second["search_results"], "Paris")
+
+                remembered = await graph.ainvoke(
+                    state_for_route("Osaka", "Paris"),
+                    config=config(memory_thread),
+                    context=TravelRuntimeContext(user_id=user_id),
+                )
+                isolated = await graph.ainvoke(
+                    state_for_route("Osaka", "Paris"),
+                    config=config(isolated_thread),
+                    context=TravelRuntimeContext(user_id=other_user_id),
+                )
+                assert remembered["remembered_preferences"] == ["Quiet neighborhoods"]
+                assert isolated["remembered_preferences"] == []
                 preference_id = (await list_user_preferences(store, user_id))[0].preference_id
 
         async with AsyncPostgresSaver.from_conn_string(
@@ -69,24 +129,34 @@ async def test_postgres_checkpoint_and_store_survive_reopen() -> None:
                     checkpointer=reopened_saver,
                     store=reopened_store,
                 )
-                snapshot = await reopened_graph.aget_state(config(thread_id))
+                snapshot = await reopened_graph.aget_state(config(main_thread))
                 history = [
-                    item async for item in reopened_graph.aget_state_history(config(thread_id))
+                    item async for item in reopened_graph.aget_state_history(config(main_thread))
                 ]
                 preferences = await list_user_preferences(reopened_store, user_id)
-                isolated = await list_user_preferences(reopened_store, other_user_id)
+                other_preferences = await list_user_preferences(reopened_store, other_user_id)
 
                 assert isinstance(snapshot.values["requirements"], TripRequirements)
                 assert isinstance(snapshot.values["travel_plan"], TravelPlan)
-                assert len(history) >= 6
+                assert snapshot.values["requirements"].destination == "Paris"
+                assert len(snapshot.values["search_tasks"]) == 5
+                assert len(snapshot.values["search_results"]) == 5
+                assert len({item["task_id"] for item in snapshot.values["search_results"]}) == 5
+                assert [item["kind"] for item in snapshot.values["search_results"]] == [
+                    kind.value for kind in SEARCH_KIND_ORDER
+                ]
+                assert_current_destination(snapshot.values["search_results"], "Paris")
+                json.dumps(snapshot.values["search_results"])
+                assert history
                 assert [item.value for item in preferences] == ["Quiet neighborhoods"]
-                assert isolated == []
+                assert other_preferences == []
     finally:
         async with AsyncPostgresSaver.from_conn_string(
             uri,
             serde=create_strict_serializer(),
         ) as cleanup_saver:
-            await cleanup_saver.adelete_thread(thread_id)
+            for thread_id in thread_ids:
+                await cleanup_saver.adelete_thread(thread_id)
         async with AsyncPostgresStore.from_conn_string(uri) as cleanup_store:
             if preference_id:
                 await cleanup_store.adelete(

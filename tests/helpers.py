@@ -21,6 +21,7 @@ from app.core.resources import AppResources
 from app.graphs.graph import build_travel_planning_graph
 from app.graphs.nodes.retriever import ContextRetriever
 from app.infrastructure.chroma import ChromaClientProvider
+from app.search.backend import SearchBackend
 
 
 class FakeEngine:
@@ -124,6 +125,7 @@ def make_resource_fakes(
 
 def make_in_memory_persistence_factory(
     context_retriever: ContextRetriever | None = None,
+    search_backend: SearchBackend | None = None,
 ) -> PersistenceFactory:
     """Build isolated LangGraph persistence that never contacts Docker."""
 
@@ -135,6 +137,7 @@ def make_in_memory_persistence_factory(
         store = InMemoryStore()
         graph = build_travel_planning_graph(
             retrieve,
+            search_backend=search_backend,
             checkpointer=checkpointer,
             store=store,
         )

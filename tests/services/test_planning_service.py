@@ -8,9 +8,11 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.models import Currency, FlightOption, TripRequirements
+from app.services import planning_service as planning_service_module
 from app.services.planning_service import (
     MOCK_PLANNING_PROVIDERS,
     PlanningServiceError,
+    assemble_travel_plan_from_results,
     create_mock_travel_plan,
 )
 
@@ -152,3 +154,78 @@ def test_invalid_requirements_are_rejected_before_planning() -> None:
             currency=Currency.CNY,
             travelers=1,
         )
+
+
+def test_pure_assembly_never_calls_provider_wrappers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P08 can combine worker output without causing a second provider query."""
+
+    requirements = make_requirements()
+    flights = MOCK_PLANNING_PROVIDERS.search_flights(requirements)
+    hotels = MOCK_PLANNING_PROVIDERS.search_hotels(requirements)
+    attractions = MOCK_PLANNING_PROVIDERS.search_attractions(requirements)
+    weather = MOCK_PLANNING_PROVIDERS.get_weather(requirements)
+    route = MOCK_PLANNING_PROVIDERS.get_route(
+        requirements.origin,
+        requirements.destination,
+    )
+
+    def repeated_call(*_: object) -> None:
+        raise AssertionError("pure assembly called a provider wrapper")
+
+    monkeypatch.setattr(planning_service_module, "_search_flights", repeated_call)
+    monkeypatch.setattr(planning_service_module, "_search_hotels", repeated_call)
+    monkeypatch.setattr(planning_service_module, "_search_attractions", repeated_call)
+    monkeypatch.setattr(planning_service_module, "_get_weather", repeated_call)
+    monkeypatch.setattr(planning_service_module, "_get_route", repeated_call)
+
+    plan = assemble_travel_plan_from_results(
+        requirements=requirements,
+        flight_options=flights,
+        hotel_options=hotels,
+        attractions=attractions,
+        weather=weather,
+        route=route,
+    )
+
+    assert plan.requirements == requirements
+    assert plan.flight == flights[0]
+
+
+@pytest.mark.parametrize(
+    ("missing_kind", "expected_activity"),
+    [
+        ("attractions", "Attraction information unavailable."),
+        ("weather", "Weather information unavailable."),
+        ("route", "Route information unavailable."),
+    ],
+)
+def test_noncritical_missing_data_produces_explicit_degraded_plan(
+    missing_kind: str,
+    expected_activity: str,
+) -> None:
+    """Missing optional data is disclosed instead of invented."""
+
+    requirements = make_requirements()
+    flights = MOCK_PLANNING_PROVIDERS.search_flights(requirements)
+    hotels = MOCK_PLANNING_PROVIDERS.search_hotels(requirements)
+    attractions = MOCK_PLANNING_PROVIDERS.search_attractions(requirements)
+    weather = MOCK_PLANNING_PROVIDERS.get_weather(requirements)
+    route = MOCK_PLANNING_PROVIDERS.get_route(
+        requirements.origin,
+        requirements.destination,
+    )
+
+    plan = assemble_travel_plan_from_results(
+        requirements=requirements,
+        flight_options=flights,
+        hotel_options=hotels,
+        attractions=[] if missing_kind == "attractions" else attractions,
+        weather=[] if missing_kind == "weather" else weather,
+        route=None if missing_kind == "route" else route,
+        unavailable_searches=[missing_kind],
+    )
+
+    assert any(expected_activity in day.activities for day in plan.daily_itinerary)
+    assert f"{missing_kind} information is unavailable" in plan.markdown

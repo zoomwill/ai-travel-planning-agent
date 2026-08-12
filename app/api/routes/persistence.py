@@ -93,6 +93,10 @@ def _make_initial_state(payload: ThreadPlanRequest) -> TravelPlanState:
         "next_agent": None,
         "remembered_preferences": [],
         "retrieved_context": [],
+        "search_tasks": [],
+        "search_results": [],
+        "tool_errors": [],
+        "search_summary": {},
         "travel_plan": None,
         "error": None,
     }
@@ -157,6 +161,18 @@ async def create_thread_plan(
             error,
             "The persistence runtime could not complete the request.",
         )
+    if error is not None and error.startswith("critical_search_failed:"):
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "critical_search_failed",
+            "Required flight or hotel search data is unavailable.",
+        )
+    if error == "plan_assembly_failed":
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "plan_assembly_failed",
+            "The validated search results could not be assembled into a plan.",
+        )
     travel_plan = final_state.get("travel_plan")
     if travel_plan is None:
         _raise_api_error(
@@ -169,6 +185,8 @@ async def create_thread_plan(
         user_id=validated_user_id,
         travel_plan=travel_plan,
         remembered_preferences=final_state.get("remembered_preferences", []),
+        search_summary=final_state.get("search_summary", {}),
+        tool_errors=final_state.get("tool_errors", []),
     )
 
 
@@ -206,6 +224,9 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
         user_request=values.get("user_request"),
         next_agent=values.get("next_agent"),
         remembered_preferences=values.get("remembered_preferences", []),
+        search_summary=values.get("search_summary", {}),
+        search_result_count=len(values.get("search_results", [])),
+        tool_error_count=len(values.get("tool_errors", [])),
         travel_plan=travel_plan,
         error=values.get("error"),
     )

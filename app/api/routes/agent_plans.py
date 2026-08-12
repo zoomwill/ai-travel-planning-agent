@@ -32,6 +32,10 @@ async def create_agent_plan(request: Request, requirements: TripRequirements) ->
         "next_agent": None,
         "remembered_preferences": [],
         "retrieved_context": [],
+        "search_tasks": [],
+        "search_results": [],
+        "tool_errors": [],
+        "search_summary": {},
         "travel_plan": None,
         "error": None,
     }
