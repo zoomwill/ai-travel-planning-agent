@@ -12,6 +12,7 @@ from app.core.resources import AppResources
 from app.main import create_app
 from app.search.models import SearchKind
 from tests.helpers import make_in_memory_persistence_factory, make_resource_fakes
+from tests.review.helpers import FailingPlanReviewer
 from tests.search.helpers import RecordingSearchBackend
 
 
@@ -29,7 +30,9 @@ def client() -> Iterator[TestClient]:
         settings=settings,
         resource_factory=resource_factory,
         persistence_factory=make_in_memory_persistence_factory(
-            lambda query: ["Deterministic local knowledge"]
+            lambda query: [
+                "Photography, vintage shopping, quiet neighborhoods, and local food knowledge."
+            ]
         ),
     )
     with TestClient(application) as test_client:
@@ -81,14 +84,26 @@ def test_thread_plan_state_and_history_are_available(client: TestClient) -> None
         "route": {"status": "ok", "count": 1},
     }
     assert plan.json()["tool_errors"] == []
+    assert plan.json()["review_status"] == "accepted"
+    assert plan.json()["review_rounds"] == 1
+    assert plan.json()["final_score"] == 100
+    assert plan.json()["finalization_reason"] == "threshold_reached"
+    assert plan.json()["review_summary"]["decision"] == "accept"
     assert "## Remembered preferences" in plan.json()["travel_plan"]["markdown"]
     assert state.status_code == 200
     assert state.json()["status"] == "complete"
     assert state.json()["search_result_count"] == 5
     assert state.json()["tool_error_count"] == 0
+    assert state.json()["review_status"] == "accepted"
+    assert state.json()["review_round"] == 1
+    assert state.json()["final_score"] == 100
+    assert state.json()["finalization_reason"] == "threshold_reached"
+    assert state.json()["draft_present"] is True
+    assert state.json()["review_history_count"] == 1
     assert state.json()["search_summary"] == plan.json()["search_summary"]
     assert "configurable" not in state.text
     assert "search_task" not in state.text
+    assert "draft_fingerprint" not in state.text
     assert history.status_code == 200
     assert len(history.json()["checkpoints"]) == 3
     assert all(item["checkpoint_id"] for item in history.json()["checkpoints"])
@@ -134,8 +149,15 @@ def test_same_thread_second_http_request_contains_only_new_destination(
     assert first.status_code == 200
     assert second.status_code == 200
     assert second.json()["travel_plan"]["requirements"]["destination"] == "Paris"
+    assert second.json()["review_rounds"] == 1
+    assert (
+        second.json()["review_summary"]["draft_fingerprint"]
+        != first.json()["review_summary"]["draft_fingerprint"]
+    )
     assert state.json()["travel_plan"]["requirements"]["destination"] == "Paris"
     assert state.json()["search_result_count"] == 5
+    assert state.json()["review_round"] == 1
+    assert state.json()["review_history_count"] == 1
 
 
 def test_only_explicit_preferences_are_listed(client: TestClient) -> None:
@@ -271,4 +293,56 @@ def test_critical_search_exception_returns_sanitized_503() -> None:
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "critical_search_failed"
     assert "private backend detail" not in response.text
+    assert "traceback" not in response.text.casefold()
+
+
+def test_persistent_recursion_limit_returns_safe_structured_error() -> None:
+    """The official GraphRecursionError never exposes runnable config or internals."""
+
+    settings = Settings(_env_file=None, graph_recursion_limit=1)
+    fakes = make_resource_fakes(settings)
+
+    async def resource_factory(_: Settings) -> AppResources:
+        return fakes.resources
+
+    application = create_app(
+        settings=settings,
+        resource_factory=resource_factory,
+        persistence_factory=make_in_memory_persistence_factory(),
+    )
+    with TestClient(application) as test_client:
+        response = test_client.post(
+            "/api/v1/agents/threads/recursion-thread/plans",
+            json=payload(),
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "graph_recursion_limit_reached"
+    assert "configurable" not in response.text
+    assert "traceback" not in response.text.casefold()
+
+
+def test_reviewer_exception_returns_safe_structured_error() -> None:
+    """Reviewer exception text stays in the test process and out of HTTP."""
+
+    settings = Settings(_env_file=None)
+    fakes = make_resource_fakes(settings)
+
+    async def resource_factory(_: Settings) -> AppResources:
+        return fakes.resources
+
+    application = create_app(
+        settings=settings,
+        resource_factory=resource_factory,
+        persistence_factory=make_in_memory_persistence_factory(plan_reviewer=FailingPlanReviewer()),
+    )
+    with TestClient(application) as test_client:
+        response = test_client.post(
+            "/api/v1/agents/threads/reviewer-failure-thread/plans",
+            json=payload(),
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "reviewer_failed"
+    assert "private reviewer traceback secret" not in response.text
     assert "traceback" not in response.text.casefold()

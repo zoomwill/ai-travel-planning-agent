@@ -51,6 +51,8 @@ async def create_postgres_persistence_resources(
         )
         store = await stack.enter_async_context(AsyncPostgresStore.from_conn_string(connection_uri))
         graph = build_travel_planning_graph(
+            review_score_threshold=settings.review_score_threshold,
+            review_max_rounds=settings.review_max_rounds,
             checkpointer=checkpointer,
             store=store,
         )

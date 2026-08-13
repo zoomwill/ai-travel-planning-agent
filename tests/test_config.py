@@ -44,3 +44,35 @@ def test_langgraph_uri_uses_official_scheme_and_remains_redacted() -> None:
 def test_infrastructure_timeout_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, infrastructure_timeout_seconds=0)
+
+
+def test_review_defaults_are_bounded_and_recursion_limit_is_standalone_setting() -> None:
+    """Local P09 defaults allow three reviews and a much larger graph safety limit."""
+
+    settings = Settings(_env_file=None)
+
+    assert settings.review_score_threshold == 80
+    assert settings.review_max_rounds == 3
+    assert settings.graph_recursion_limit == 50
+
+
+@pytest.mark.parametrize("threshold", [-0.01, 100.01])
+def test_review_threshold_stays_on_zero_to_one_hundred_scale(threshold: float) -> None:
+    """A threshold outside the QualityScore scale is rejected before graph execution."""
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, review_score_threshold=threshold)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("review_max_rounds", 0), ("graph_recursion_limit", 0)],
+)
+def test_review_round_and_recursion_limits_must_be_positive(
+    field: str,
+    value: int,
+) -> None:
+    """Neither business loop safety setting accepts zero."""
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **{field: value})

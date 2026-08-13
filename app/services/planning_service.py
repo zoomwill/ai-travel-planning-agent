@@ -16,6 +16,7 @@ from app.domain.models import (
     TripRequirements,
     WeatherSummary,
 )
+from app.review.models import RevisionPolicy
 from app.services.mock_providers import (
     get_route,
     get_weather,
@@ -101,6 +102,7 @@ def assemble_travel_plan_from_results(
     retrieved_context: Sequence[str] = (),
     remembered_preferences: Sequence[str] = (),
     unavailable_searches: Sequence[str] = (),
+    revision_policy: RevisionPolicy | None = None,
 ) -> TravelPlan:
     """Combine validated search results without calling any provider."""
 
@@ -109,17 +111,24 @@ def assemble_travel_plan_from_results(
     if not hotel_options:
         raise PlanningServiceError("hotel selection")
 
-    flight = flight_options[0]
-    hotel = max(hotel_options, key=lambda option: option.rating)
+    policy = revision_policy or RevisionPolicy()
+    flight = _select_flight(flight_options, policy)
+    hotel = _select_hotel(hotel_options, policy)
+    planned_attractions = _select_attractions(
+        attractions,
+        policy=policy,
+        preferences=[*requirements.preferences, *remembered_preferences],
+    )
 
     try:
         daily_itinerary = _build_daily_itinerary(
             requirements=requirements,
             hotel=hotel,
-            attractions=attractions,
+            attractions=planned_attractions,
             weather=weather,
             route=route,
             flight=flight,
+            max_activities_per_day=policy.max_activities_per_day,
         )
         hotel_cost = hotel.price_per_night * Decimal(len(daily_itinerary))
         activity_cost = sum(
@@ -138,12 +147,13 @@ def assemble_travel_plan_from_results(
             budget_warning=budget_warning,
         )
         plan = plan.model_copy(update={"markdown": _render_markdown(plan)})
-        return _add_context_sections(
+        contextual_plan = _add_context_sections(
             plan,
             retrieved_context=retrieved_context,
             remembered_preferences=remembered_preferences,
             unavailable_searches=unavailable_searches,
         )
+        return _add_revision_section(contextual_plan, policy)
     except PlanningServiceError:
         raise
     except Exception as exc:
@@ -218,6 +228,7 @@ def _build_daily_itinerary(
     weather: list[WeatherSummary],
     route: RouteSummary | None,
     flight: FlightOption,
+    max_activities_per_day: int | None = None,
 ) -> list[DailyItinerary]:
     """Create one day entry per inclusive trip date using repeatable rules."""
 
@@ -231,6 +242,8 @@ def _build_daily_itinerary(
         current_date = requirements.start_date + timedelta(days=offset)
         daily_weather = weather_by_date.get(current_date)
         visit_count = 1 if offset == 0 else 2
+        if max_activities_per_day is not None:
+            visit_count = min(visit_count, max_activities_per_day)
         daily_attractions: list[Attraction] = []
         if attractions:
             daily_attractions = [
@@ -290,6 +303,85 @@ def _build_daily_itinerary(
         )
 
     return itinerary
+
+
+def _select_flight(
+    flight_options: list[FlightOption],
+    policy: RevisionPolicy,
+) -> FlightOption:
+    """Preserve P04 selection unless review explicitly requests lower cost."""
+
+    if not policy.prefer_lower_cost_options:
+        return flight_options[0]
+    return min(
+        flight_options,
+        key=lambda option: (option.price, option.duration_minutes, option.flight_number),
+    )
+
+
+def _select_hotel(
+    hotel_options: list[HotelOption],
+    policy: RevisionPolicy,
+) -> HotelOption:
+    """Preserve highest-rating selection unless review requests lower cost."""
+
+    if not policy.prefer_lower_cost_options:
+        return max(hotel_options, key=lambda option: option.rating)
+    return min(
+        hotel_options,
+        key=lambda option: (option.price_per_night, -option.rating, option.name),
+    )
+
+
+def _select_attractions(
+    attractions: list[Attraction],
+    *,
+    policy: RevisionPolicy,
+    preferences: Sequence[str],
+) -> list[Attraction]:
+    """Apply preference ordering and optional-cost reduction to known attractions."""
+
+    selected = list(attractions)
+    if policy.prioritize_preferences:
+        ranked = sorted(
+            enumerate(selected),
+            key=lambda pair: (
+                -_attraction_preference_score(pair[1], preferences),
+                pair[0],
+            ),
+        )
+        selected = [attraction for _, attraction in ranked]
+    if policy.prefer_lower_cost_options and selected:
+        minimum_cost = min(attraction.estimated_cost for attraction in selected)
+        selected = [
+            attraction for attraction in selected if attraction.estimated_cost == minimum_cost
+        ]
+    return selected
+
+
+def _attraction_preference_score(
+    attraction: Attraction,
+    preferences: Sequence[str],
+) -> int:
+    """Rank known attraction text with a small documented semantic vocabulary."""
+
+    text = " ".join([attraction.name, attraction.category, attraction.description]).casefold()
+    preference_text = " ".join(preferences).casefold()
+    score = sum(token in text for token in preference_text.split())
+
+    semantic_categories: dict[str, tuple[str, ...]] = {
+        "photography": ("viewpoint", "landmark", "park", "walk"),
+        "photo": ("viewpoint", "landmark", "park", "walk"),
+        "museum": ("museum",),
+        "museums": ("museum",),
+        "quiet": ("park", "garden", "walk"),
+        "culture": ("culture", "museum", "heritage"),
+        "history": ("culture", "museum", "heritage", "historic"),
+    }
+    for preference_token, attraction_tokens in semantic_categories.items():
+        if preference_token in preference_text:
+            score += sum(token in text for token in attraction_tokens)
+    return score
 
 
 def _build_budget_warning(
@@ -362,3 +454,13 @@ def _add_context_sections(
     if not sections:
         return plan
     return plan.model_copy(update={"markdown": "\n\n".join([plan.markdown, "\n".join(sections)])})
+
+
+def _add_revision_section(plan: TravelPlan, policy: RevisionPolicy) -> TravelPlan:
+    """Describe executable policy changes after structured fields have changed."""
+
+    applied_feedback = policy.applied_feedback()
+    if not applied_feedback:
+        return plan
+    section = "\n".join(["## Applied review feedback", *(f"- {item}" for item in applied_feedback)])
+    return plan.model_copy(update={"markdown": "\n\n".join([plan.markdown, section])})

@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+from app.core.resources import AppResources
 from app.domain.models import TravelPlan
 from app.graphs.graph import build_travel_planning_graph
 from app.main import create_app
@@ -83,3 +84,25 @@ def test_agent_plan_endpoint_uses_request_validation(client: TestClient) -> None
     response = client.post("/api/v1/agents/plans", json=payload)
 
     assert response.status_code == 422
+
+
+def test_nonpersistent_recursion_limit_returns_safe_structured_error() -> None:
+    """The legacy direct TravelPlan endpoint maps LangGraph's safety exception."""
+
+    settings = Settings(_env_file=None, graph_recursion_limit=1)
+    fakes = make_resource_fakes(settings)
+
+    async def resource_factory(_: Settings) -> AppResources:
+        return fakes.resources
+
+    application = create_app(
+        settings=settings,
+        resource_factory=resource_factory,
+        persistence_factory=make_in_memory_persistence_factory(),
+    )
+    with TestClient(application) as test_client:
+        response = test_client.post("/api/v1/agents/plans", json=valid_payload())
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "graph_recursion_limit_reached"
+    assert "traceback" not in response.text.casefold()

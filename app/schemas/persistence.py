@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.models import TravelPlan, TripRequirements
+from app.review.models import FinalizationReason, PlanReview, ReviewStatus
 from app.search.models import SearchErrorEnvelope, SearchSummary
 
 PreferenceText = Annotated[str, Field(min_length=1, max_length=200)]
@@ -33,6 +34,11 @@ class ThreadPlanResponse(BaseModel):
     remembered_preferences: list[str]
     search_summary: SearchSummary = Field(default_factory=dict)
     tool_errors: list[SearchErrorEnvelope] = Field(default_factory=list)
+    review_status: ReviewStatus
+    review_rounds: int = Field(ge=0)
+    final_score: float | None = Field(default=None, ge=0, le=100)
+    finalization_reason: FinalizationReason | None = None
+    review_summary: PlanReview | None = None
 
 
 class ThreadStateResponse(BaseModel):
@@ -46,6 +52,12 @@ class ThreadStateResponse(BaseModel):
     search_summary: SearchSummary = Field(default_factory=dict)
     search_result_count: int = Field(default=0, ge=0)
     tool_error_count: int = Field(default=0, ge=0)
+    review_status: ReviewStatus = "pending"
+    review_round: int = Field(default=0, ge=0)
+    final_score: float | None = Field(default=None, ge=0, le=100)
+    finalization_reason: FinalizationReason | None = None
+    draft_present: bool = False
+    review_history_count: int = Field(default=0, ge=0)
     travel_plan: TravelPlan | None = None
     error: str | None = None
 

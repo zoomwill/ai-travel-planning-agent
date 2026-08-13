@@ -287,3 +287,78 @@ Record deviations from source pseudocode and important engineering decisions her
   SSE, MCP, real travel API, retry scheduler, authentication, frontend, or advanced RAG. No
   latency, throughput, or performance improvement was measured; the barrier proves graph
   concurrency, not speed.
+
+### 2026-08-14 — Phase P09 Planner–Reviewer reflection loop
+
+- Source intent: The architecture calls for Planner draft, structured Reviewer score/critique,
+  bounded revision, and final output. The repository's original phase plan labels this work P08,
+  while the current user-directed sequence completed parallel search as P08 and explicitly assigns
+  reflection to P09. The current instruction controls the numbering; no advanced RAG/P10 work is
+  included.
+- Current LangGraph API: LangGraph 1.2.10 uses `StateGraph.add_conditional_edges()` for both the
+  Planner-to-Reviewer guard and Reviewer-to-Planner/Finalize branch. `recursion_limit` is a
+  standalone RunnableConfig key beside, not inside, `configurable.thread_id`. The API catches the
+  official `GraphRecursionError` as a second safety boundary. Business termination still comes
+  from `review_max_rounds`, so the default of three means exactly three Reviewer calls at most.
+- Reviewer design: `PlanReviewer` is an async injectable Protocol. The production
+  `DeterministicPlanReviewer` reads TravelPlan, requirements, search summary, retrieved context,
+  remembered preferences, and tool errors without network, random values, current time, or an LLM.
+  Tests inject `ScriptedPlanReviewer` only through graph construction; there is no production HTTP
+  flag or test-mode backdoor.
+- Scoring: Reuse P03 `QualityScore` on its existing 0–100 scale. Completeness and feasibility use
+  documented fixed deductions; personalization is the percentage of reflected normalized
+  preferences and gives no-preference users 100; over-budget fit is
+  `round(100 * budget / total_cost, 2)`. Overall score is the equally weighted mean rounded to two
+  decimals. The 80 threshold and three-round limit are Settings rather than duplicated literals.
+  No user study, evaluation benchmark, or quality improvement is claimed.
+- JSON and persistence: Drafts, PlanReview, RevisionPolicy, and ReviewHistoryEntry are dumped with
+  Pydantic JSON mode before review-state writes and validated at node/API boundaries. Review
+  history's pure reducer deduplicates by round plus SHA-256 draft fingerprint and sorts by round.
+  The fingerprint covers canonical JSON for all TravelPlan fields, including Markdown. Pickle
+  fallback stays disabled.
+- Reset detail: `initialize_review_cycle` clears every existing review channel and old final plan
+  with current LangGraph `Overwrite`, while leaving P07 memory, P06 context, and P08 search data
+  intact. Because a `total=False` test input can omit a reducer channel and LangGraph cannot unwrap
+  Overwrite as that channel's first ever value, a truly absent first-run field receives its raw
+  safe default. API inputs explicitly initialize the fields; reused persistent threads always use
+  Overwrite.
+- Planning-service change: The P04 provider-running entry point and the default pure assembler
+  behavior remain compatible. An optional `RevisionPolicy` can select lower-cost existing
+  flight/hotel/attraction results, limit optional attraction visits, and deterministically promote
+  preference-relevant existing attractions. Planner uses only saved P08 results and P06/P07
+  context; it never repeats providers, RAG, or memory writes. Tests compare structured choices and
+  fingerprints so a Markdown-only claim cannot count as revision.
+- Failure/finalize policy: Critical search failure skips Reviewer. Non-critical degraded plans can
+  be reviewed. Reviewer exception/invalid output, invalid revision, finalization failure, and graph
+  recursion exhaustion use stable safe codes without raw exception text. Threshold acceptance and
+  maximum-round forced finalize both validate the final draft; forced Markdown explicitly says the
+  maximum was reached and never claims quality passed.
+- Verification: Compose parsing passed; PostgreSQL accepted connections, Redis returned `PONG`,
+  and Chroma returned HTTP 200 ready. Saver/store setup passed, all three named volumes remained,
+  and `travel_knowledge` still contained nine records. The complete ordinary suite passed 225
+  tests with four explicitly skipped Docker tests; explicit integration passed all four tests
+  with 225 ordinary tests deselected. Ruff lint and format passed, and mypy found no issues in 73
+  application files. The only warning was the existing Starlette TestClient/httpx deprecation
+  warning from installed dependencies.
+- Real HTTP acceptance: A normal Tokyo request completed one review at 83.33 and was accepted;
+  its component scores were 100 completeness, 100 feasibility, 33.33 personalization, and 100
+  budget fit. A natural 1,000 CNY request needed no production test flag: round one scored 78.97
+  and requested revision, then Planner changed flight `MK920` to `MC157`, hotel `Tokyo Central
+  Hotel` to `Tokyo Garden Stay`, selected lower-cost activities, and reduced total cost from
+  6,300 to 4,756 CNY. Its fingerprint changed and round two passed at 80.26. A genuine 100 CNY
+  request reviewed exactly three times and forced finalization at 75.53 with reason
+  `max_review_rounds_reached`; its Markdown explicitly disclosed that the maximum was reached.
+  Checkpoint history contained the expected Planner/Reviewer super-steps without relying on a
+  fixed checkpoint count.
+- Persistence acceptance: After graceful Uvicorn shutdown and a fresh process, the normal State
+  and checkpoint history reopened with the same review result. A Paris request on the same thread
+  reset review round/history to one, replaced the old fingerprint, and had Paris in all five P08
+  result categories while the explicitly remembered crowd preference remained. A different user
+  saw no preference. The P04 Mock and old non-persistent Agent endpoints both returned HTTP 200
+  with their direct TravelPlan shape. The three UUID-scoped acceptance threads and one explicit
+  preference were deleted and verified absent; no shared table, collection, or volume was
+  deleted. The final Uvicorn process exited with code zero and port 8000 had no listener.
+- Remaining limitation: This Reviewer is a transparent local ruleset, not an LLM or human. Token
+  preference matching is intentionally simple, English-oriented, and not benchmarked. P09 adds no
+  prompt API, Qwen/OpenAI/Anthropic integration, MCP, SSE, advanced RAG, authentication, frontend,
+  real travel API, database business table, or booking action.

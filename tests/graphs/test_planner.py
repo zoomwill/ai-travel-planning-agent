@@ -6,7 +6,7 @@ from typing import NoReturn
 
 import pytest
 
-from app.domain.models import Currency, TripRequirements
+from app.domain.models import Currency, TravelPlan, TripRequirements
 from app.graphs.nodes.aggregate_search_results import aggregate_search_results_node
 from app.graphs.nodes.planner import planner_node
 from app.graphs.state import TravelPlanState
@@ -97,7 +97,8 @@ def test_planner_reuses_p04_assembly_rules_without_repeating_providers(
 
     update = planner_node(state)
 
-    assert update["travel_plan"] == expected
+    assert update["travel_plan"] is None
+    assert TravelPlan.model_validate(update["draft_plan"]) == expected
     assert update["error"] is None
 
 

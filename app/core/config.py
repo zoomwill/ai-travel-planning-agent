@@ -34,6 +34,10 @@ class Settings(BaseSettings):
 
     infrastructure_timeout_seconds: float = Field(default=2.0, gt=0)
 
+    review_score_threshold: float = Field(default=80.0, ge=0, le=100)
+    review_max_rounds: int = Field(default=3, ge=1)
+    graph_recursion_limit: int = Field(default=50, ge=1)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

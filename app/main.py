@@ -14,7 +14,7 @@ from app.core.persistence import (
     create_postgres_persistence_resources,
 )
 from app.core.resources import ResourceFactory, create_app_resources
-from app.graphs.graph import TravelPlanningGraph, travel_planning_graph
+from app.graphs.graph import TravelPlanningGraph, build_travel_planning_graph
 
 
 def create_app(
@@ -22,11 +22,15 @@ def create_app(
     settings: Settings | None = None,
     resource_factory: ResourceFactory = create_app_resources,
     persistence_factory: PersistenceFactory = create_postgres_persistence_resources,
-    travel_graph: TravelPlanningGraph = travel_planning_graph,
+    travel_graph: TravelPlanningGraph | None = None,
 ) -> FastAPI:
     """Create a FastAPI application with injectable lifespan resources."""
 
     resolved_settings = settings or get_settings()
+    resolved_travel_graph = travel_graph or build_travel_planning_graph(
+        review_score_threshold=resolved_settings.review_score_threshold,
+        review_max_rounds=resolved_settings.review_max_rounds,
+    )
     application = FastAPI(
         title="AI Intelligent Travel Planning System",
         version="0.1.0",
@@ -37,7 +41,7 @@ def create_app(
         ),
     )
     application.state.settings = resolved_settings
-    application.state.travel_planning_graph = travel_graph
+    application.state.travel_planning_graph = resolved_travel_graph
     application.include_router(agent_plans_router)
     application.include_router(health_router)
     application.include_router(readiness_router)

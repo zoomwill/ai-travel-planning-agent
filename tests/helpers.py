@@ -21,6 +21,7 @@ from app.core.resources import AppResources
 from app.graphs.graph import build_travel_planning_graph
 from app.graphs.nodes.retriever import ContextRetriever
 from app.infrastructure.chroma import ChromaClientProvider
+from app.review.reviewer import PlanReviewer
 from app.search.backend import SearchBackend
 
 
@@ -126,18 +127,22 @@ def make_resource_fakes(
 def make_in_memory_persistence_factory(
     context_retriever: ContextRetriever | None = None,
     search_backend: SearchBackend | None = None,
+    plan_reviewer: PlanReviewer | None = None,
 ) -> PersistenceFactory:
     """Build isolated LangGraph persistence that never contacts Docker."""
 
     retrieve = context_retriever or (lambda query: [])
 
     @asynccontextmanager
-    async def factory(_: Settings) -> AsyncIterator[PersistenceResources]:
+    async def factory(settings: Settings) -> AsyncIterator[PersistenceResources]:
         checkpointer = InMemorySaver(serde=create_strict_serializer())
         store = InMemoryStore()
         graph = build_travel_planning_graph(
             retrieve,
             search_backend=search_backend,
+            plan_reviewer=plan_reviewer,
+            review_score_threshold=settings.review_score_threshold,
+            review_max_rounds=settings.review_max_rounds,
             checkpointer=checkpointer,
             store=store,
         )

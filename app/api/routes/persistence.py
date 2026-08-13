@@ -5,6 +5,7 @@ from typing import Any, NoReturn, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from langchain_core.runnables import RunnableConfig
+from langgraph.errors import GraphRecursionError
 from langgraph.types import StateSnapshot
 
 from app.core.persistence import PersistenceResources
@@ -13,6 +14,7 @@ from app.graphs.context import TravelRuntimeContext
 from app.graphs.state import TravelPlanState
 from app.memory.models import PreferenceMemory
 from app.memory.preferences import delete_user_preference, list_user_preferences
+from app.review.models import PlanReview
 from app.schemas.persistence import (
     ThreadHistoryItem,
     ThreadHistoryResponse,
@@ -74,10 +76,17 @@ def _get_persistence(request: Request) -> PersistenceResources:
         )
 
 
-def _thread_config(thread_id: str) -> RunnableConfig:
+def _thread_config(
+    thread_id: str,
+    *,
+    recursion_limit: int | None = None,
+) -> RunnableConfig:
     """Build the LangGraph configurable section used as the checkpoint key."""
 
-    return {"configurable": {"thread_id": thread_id}}
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+    if recursion_limit is not None:
+        config["recursion_limit"] = recursion_limit
+    return config
 
 
 def _make_initial_state(payload: ThreadPlanRequest) -> TravelPlanState:
@@ -97,6 +106,15 @@ def _make_initial_state(payload: ThreadPlanRequest) -> TravelPlanState:
         "search_results": [],
         "tool_errors": [],
         "search_summary": {},
+        "draft_plan": None,
+        "current_review": None,
+        "review_history": [],
+        "review_round": 0,
+        "critique": None,
+        "revision_policy": None,
+        "applied_feedback": [],
+        "review_status": "pending",
+        "finalization_reason": None,
         "travel_plan": None,
         "error": None,
     }
@@ -143,8 +161,17 @@ async def create_thread_plan(
     try:
         result = await persistence.graph.ainvoke(
             _make_initial_state(payload),
-            config=_thread_config(validated_thread_id),
+            config=_thread_config(
+                validated_thread_id,
+                recursion_limit=request.app.state.settings.graph_recursion_limit,
+            ),
             context=context,
+        )
+    except GraphRecursionError:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "graph_recursion_limit_reached",
+            "The persistent graph reached its configured safety limit.",
         )
     except Exception:
         _raise_api_error(
@@ -173,6 +200,17 @@ async def create_thread_plan(
             "plan_assembly_failed",
             "The validated search results could not be assembled into a plan.",
         )
+    if error in {
+        "reviewer_failed",
+        "review_output_invalid",
+        "revision_failed",
+        "finalization_failed",
+    }:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            error,
+            "The quality review workflow could not safely complete the request.",
+        )
     travel_plan = final_state.get("travel_plan")
     if travel_plan is None:
         _raise_api_error(
@@ -180,6 +218,7 @@ async def create_thread_plan(
             "checkpoint_unavailable",
             "The persistent Planner Agent did not return a plan.",
         )
+    review_summary = _validated_review(final_state.get("current_review"))
     return ThreadPlanResponse(
         thread_id=validated_thread_id,
         user_id=validated_user_id,
@@ -187,6 +226,11 @@ async def create_thread_plan(
         remembered_preferences=final_state.get("remembered_preferences", []),
         search_summary=final_state.get("search_summary", {}),
         tool_errors=final_state.get("tool_errors", []),
+        review_status=final_state.get("review_status", "failed"),
+        review_rounds=final_state.get("review_round", 0),
+        final_score=(review_summary.scores.overall_score if review_summary is not None else None),
+        finalization_reason=final_state.get("finalization_reason"),
+        review_summary=review_summary,
     )
 
 
@@ -218,6 +262,7 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
     travel_plan = (
         TravelPlan.model_validate(travel_plan_value) if travel_plan_value is not None else None
     )
+    review_summary = _validated_review(values.get("current_review"))
     return ThreadStateResponse(
         thread_id=validated_thread_id,
         status=cast(Any, _state_status(values, snapshot.next)),
@@ -227,6 +272,12 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
         search_summary=values.get("search_summary", {}),
         search_result_count=len(values.get("search_results", [])),
         tool_error_count=len(values.get("tool_errors", [])),
+        review_status=values.get("review_status", "pending"),
+        review_round=values.get("review_round", 0),
+        final_score=(review_summary.scores.overall_score if review_summary is not None else None),
+        finalization_reason=values.get("finalization_reason"),
+        draft_present=values.get("draft_plan") is not None,
+        review_history_count=len(values.get("review_history", [])),
         travel_plan=travel_plan,
         error=values.get("error"),
     )
@@ -271,6 +322,17 @@ async def get_thread_history(
         thread_id=validated_thread_id,
         checkpoints=checkpoints,
     )
+
+
+def _validated_review(value: object) -> PlanReview | None:
+    """Validate JSON review state before including its safe public projection."""
+
+    if value is None:
+        return None
+    try:
+        return PlanReview.model_validate(value)
+    except Exception:
+        return None
 
 
 @router.get(

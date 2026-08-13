@@ -1,6 +1,6 @@
 """Planner node that combines results already produced by P08 subagents."""
 
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from pydantic import BaseModel
 
@@ -13,10 +13,12 @@ from app.domain.models import (
     WeatherSummary,
 )
 from app.graphs.state import TravelPlanState
+from app.review.models import RevisionPolicy
 from app.search.models import (
     JsonObject,
     SearchKind,
     SearchKindValue,
+    dump_model_json,
     search_kind_value,
 )
 from app.services import planning_service
@@ -58,27 +60,54 @@ def _critical_error(kinds: list[SearchKind]) -> TravelPlanState:
 
     names = ",".join(kind.value for kind in kinds)
     return {
+        "draft_plan": None,
         "travel_plan": None,
+        "review_status": "failed",
+        "finalization_reason": "critical_search_failure",
         "error": f"critical_search_failed:{names}",
     }
 
 
 def planner_node(state: TravelPlanState) -> TravelPlanState:
-    """Validate parallel results and assemble a complete or degraded travel plan."""
+    """Assemble a first or revised draft from existing search and context data."""
 
     if state.get("next_agent") != "planner":
         return {
+            "draft_plan": None,
             "travel_plan": None,
+            "review_status": "failed",
             "error": state.get("error") or "The Planner Agent was not selected.",
         }
     if state.get("error") is not None:
-        return {"travel_plan": None, "error": state["error"]}
+        return {
+            "draft_plan": None,
+            "travel_plan": None,
+            "review_status": "failed",
+            "error": state["error"],
+        }
 
     requirements = state.get("requirements")
     if requirements is None:
         return {
+            "draft_plan": None,
             "travel_plan": None,
+            "review_status": "failed",
             "error": "Validated trip requirements are required.",
+        }
+
+    policy_data = state.get("revision_policy")
+    try:
+        revision_policy = (
+            RevisionPolicy.model_validate(policy_data)
+            if policy_data is not None
+            else RevisionPolicy()
+        )
+    except Exception:
+        return {
+            "draft_plan": None,
+            "travel_plan": None,
+            "review_status": "failed",
+            "error": "revision_failed",
         }
 
     missing_critical = [kind for kind in _CRITICAL_KINDS if not _available_result_data(state, kind)]
@@ -148,8 +177,30 @@ def planner_node(state: TravelPlanState) -> TravelPlanState:
             retrieved_context=state.get("retrieved_context", []),
             remembered_preferences=state.get("remembered_preferences", []),
             unavailable_searches=unavailable,
+            revision_policy=revision_policy,
         )
     except planning_service.PlanningServiceError:
-        return {"travel_plan": None, "error": "plan_assembly_failed"}
+        error_code = (
+            "revision_failed" if state.get("review_round", 0) > 0 else "plan_assembly_failed"
+        )
+        return {
+            "draft_plan": None,
+            "travel_plan": None,
+            "review_status": "failed",
+            "error": error_code,
+        }
 
-    return {"travel_plan": travel_plan, "error": None}
+    return {
+        "draft_plan": dump_model_json(travel_plan),
+        "travel_plan": None,
+        "applied_feedback": revision_policy.applied_feedback(),
+        "error": None,
+    }
+
+
+def route_after_planner(state: TravelPlanState) -> Literal["reviewer", "__end__"]:
+    """Skip Reviewer whenever Planner could not produce a valid draft."""
+
+    if state.get("draft_plan") is not None and state.get("error") is None:
+        return "reviewer"
+    return "__end__"

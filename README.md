@@ -101,3 +101,10 @@ Phase P08 uses LangGraph `Send` to fan one request out to deterministic flight, 
 weather, and route search subagents. Custom reducers merge their JSON-safe updates, `Overwrite`
 clears old search state on a reused persistent thread, and an aggregator fans the branches back in
 before Planner. Read [`docs/15_PARALLEL_SEARCH_SUBAGENTS.md`](docs/15_PARALLEL_SEARCH_SUBAGENTS.md).
+
+Phase P09 adds a deterministic structured quality loop after P08 aggregation. Planner now writes a
+draft, Reviewer scores completeness, feasibility, personalization, and budget fit, and conditional
+edges either revise the draft or finalize it. The loop has a configurable threshold, an exact
+maximum review count, and a standalone LangGraph recursion limit. It still uses no LLM or real
+provider. Read
+[`docs/16_PLANNER_REVIEWER_REFLECTION.md`](docs/16_PLANNER_REVIEWER_REFLECTION.md).
