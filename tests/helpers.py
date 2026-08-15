@@ -21,6 +21,7 @@ from app.core.resources import AppResources
 from app.graphs.graph import build_travel_planning_graph
 from app.graphs.nodes.retriever import ContextRetriever
 from app.infrastructure.chroma import ChromaClientProvider
+from app.rag.advanced_retriever import AdvancedRetriever
 from app.review.reviewer import PlanReviewer
 from app.search.backend import SearchBackend
 
@@ -134,11 +135,15 @@ def make_in_memory_persistence_factory(
     retrieve = context_retriever or (lambda query: [])
 
     @asynccontextmanager
-    async def factory(settings: Settings) -> AsyncIterator[PersistenceResources]:
+    async def factory(
+        settings: Settings,
+        advanced_retriever: AdvancedRetriever | None = None,
+    ) -> AsyncIterator[PersistenceResources]:
         checkpointer = InMemorySaver(serde=create_strict_serializer())
         store = InMemoryStore()
         graph = build_travel_planning_graph(
             retrieve,
+            advanced_retriever=advanced_retriever,
             search_backend=search_backend,
             plan_reviewer=plan_reviewer,
             review_score_threshold=settings.review_score_threshold,

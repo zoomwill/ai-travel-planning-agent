@@ -12,6 +12,7 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 
 from app.core.config import Settings
 from app.graphs.graph import TravelPlanningGraph, build_travel_planning_graph
+from app.rag.advanced_retriever import AdvancedRetriever
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +24,10 @@ class PersistenceResources:
     graph: TravelPlanningGraph
 
 
-PersistenceFactory = Callable[[Settings], AbstractAsyncContextManager[PersistenceResources]]
+PersistenceFactory = Callable[
+    [Settings, AdvancedRetriever | None],
+    AbstractAsyncContextManager[PersistenceResources],
+]
 
 
 def create_strict_serializer() -> JsonPlusSerializer:
@@ -38,6 +42,7 @@ def create_strict_serializer() -> JsonPlusSerializer:
 @asynccontextmanager
 async def create_postgres_persistence_resources(
     settings: Settings,
+    advanced_retriever: AdvancedRetriever | None = None,
 ) -> AsyncIterator[PersistenceResources]:
     """Open exactly one saver and store connection for one application lifespan."""
 
@@ -51,6 +56,7 @@ async def create_postgres_persistence_resources(
         )
         store = await stack.enter_async_context(AsyncPostgresStore.from_conn_string(connection_uri))
         graph = build_travel_planning_graph(
+            advanced_retriever=advanced_retriever,
             review_score_threshold=settings.review_score_threshold,
             review_max_rounds=settings.review_max_rounds,
             checkpointer=checkpointer,

@@ -34,7 +34,11 @@ class TravelPlanState(TypedDict, total=False):
     requirements: TripRequirements
     next_agent: Literal["planner"] | None
     remembered_preferences: list[str]
-    retrieved_context: list[str]
+    retrieved_context: Annotated[list[str], replace_state_value]
+    retrieval_query_variants: Annotated[list[str], replace_state_value]
+    retrieval_parent_ids: Annotated[list[str], replace_state_value]
+    retrieval_diagnostics: Annotated[JsonObject | None, replace_state_value]
+    retrieval_error: Annotated[str | None, replace_state_value]
     search_tasks: Annotated[list[SearchTask], merge_search_tasks]
     search_results: Annotated[list[SearchResultEnvelope], merge_search_results]
     tool_errors: Annotated[list[SearchErrorEnvelope], merge_tool_errors]

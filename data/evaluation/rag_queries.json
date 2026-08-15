@@ -1,0 +1,252 @@
+[
+  {
+    "query_id": "tokyo-quiet-photo-01",
+    "query": "东京安静、适合街头摄影的社区",
+    "destination": "Tokyo",
+    "preferences": ["photography", "avoid crowds"],
+    "relevance_judgments": {
+      "2b2960e3ee978d9cda7781067324f231cfca0af5711dbe8017e9990e111ebf47": 3,
+      "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f": 3,
+      "cdf6699968848995d537545c4e94860650cb2acfbe5ee29bbb47340766eb45e9": 2,
+      "a1408824e24fe59c94e023c0fd408fb164eadfa159b162ceaab378dcc37f3494": 1
+    }
+  },
+  {
+    "query_id": "tokyo-vintage-02",
+    "query": "Tokyo vintage-style shopping, crafts, and independent bookshops",
+    "destination": "Tokyo",
+    "preferences": ["vintage shopping", "crafts"],
+    "relevance_judgments": {
+      "29712488149841c666d621705555e27aac1ddb3a7215f2dd42fbb6f25c96af3f": 3,
+      "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f": 1
+    }
+  },
+  {
+    "query_id": "tokyo-airport-03",
+    "query": "Tokyo airport transfer with large luggage and few stairs",
+    "destination": "Tokyo",
+    "preferences": ["large luggage", "low stress"],
+    "relevance_judgments": {
+      "607e4b1e6fc22013753b7940f6aab1f4d617949a280e5f01715dd51f66048e3f": 3,
+      "d25bf186ff3beb2a4624681aa8a3d9a8bce04fb13000421e830611081501ae82": 2
+    }
+  },
+  {
+    "query_id": "tokyo-rail-04",
+    "query": "Group Tokyo neighborhoods by rail to reduce transfers",
+    "destination": "Tokyo",
+    "preferences": ["efficient transport"],
+    "relevance_judgments": {
+      "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa": 3,
+      "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57": 2
+    }
+  },
+  {
+    "query_id": "tokyo-calm-05",
+    "query": "东京怎样错峰游览花园和安静街道",
+    "destination": "Tokyo",
+    "preferences": ["avoid crowds", "gardens"],
+    "relevance_judgments": {
+      "2b2960e3ee978d9cda7781067324f231cfca0af5711dbe8017e9990e111ebf47": 3,
+      "538626cf8d3633eb8a16c58db2b25e3090c0bc4ef1a740ca0c5f0b2e9a8757a5": 2,
+      "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57": 2
+    }
+  },
+  {
+    "query_id": "tokyo-photo-pace-06",
+    "query": "Tokyo photography day with equipment breaks and city lights",
+    "destination": "Tokyo",
+    "preferences": ["photography", "slow pace"],
+    "relevance_judgments": {
+      "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b": 3,
+      "cdf6699968848995d537545c4e94860650cb2acfbe5ee29bbb47340766eb45e9": 2,
+      "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca": 2
+    }
+  },
+  {
+    "query_id": "tokyo-accessible-07",
+    "query": "东京无障碍、少换乘并有休息时间的路线",
+    "destination": "Tokyo",
+    "preferences": ["step-free", "rest breaks"],
+    "relevance_judgments": {
+      "d25bf186ff3beb2a4624681aa8a3d9a8bce04fb13000421e830611081501ae82": 3,
+      "607e4b1e6fc22013753b7940f6aab1f4d617949a280e5f01715dd51f66048e3f": 1
+    }
+  },
+  {
+    "query_id": "tokyo-evening-08",
+    "query": "A calm Tokyo evening near the hotel without a packed schedule",
+    "destination": "Tokyo",
+    "preferences": ["quiet evening", "low stress"],
+    "relevance_judgments": {
+      "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca": 3,
+      "150070ef57db0f414ade040101c77ee98c77091cff55ec6d5e45a9976ae64392": 1
+    }
+  },
+  {
+    "query_id": "paris-museum-09",
+    "query": "Paris museum day without collection fatigue",
+    "destination": "Paris",
+    "preferences": ["museums", "slow pace"],
+    "relevance_judgments": {
+      "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b": 3,
+      "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9": 2
+    }
+  },
+  {
+    "query_id": "paris-art-10",
+    "query": "巴黎印象派艺术和素描兴趣如何安排重点参观",
+    "destination": "Paris",
+    "preferences": ["impressionism", "sketching"],
+    "relevance_judgments": {
+      "ea0448e9d6b34ea838050ff740a7f14e8d6ff8849c524e3e65d6a2f54e07020c": 3,
+      "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b": 1
+    }
+  },
+  {
+    "query_id": "paris-museum-walk-11",
+    "query": "After a Paris museum, choose a nearby garden or Seine walk",
+    "destination": "Paris",
+    "preferences": ["museums", "walking"],
+    "relevance_judgments": {
+      "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4": 3,
+      "02ede16d67d500ea993cf71fdbe8ef826b2f4369f3df2f732b5482f785891501": 2
+    }
+  },
+  {
+    "query_id": "paris-step-free-12",
+    "query": "Paris step-free transport route with mobility aids",
+    "destination": "Paris",
+    "preferences": ["accessibility", "mobility aid"],
+    "relevance_judgments": {
+      "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085": 3,
+      "05d28f5d851ffc677653fae89f1cf013945dff9f14ff6091e02272fc904ae839": 2,
+      "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4": 1
+    }
+  },
+  {
+    "query_id": "paris-photo-13",
+    "query": "巴黎避开人群的清晨街头摄影",
+    "destination": "Paris",
+    "preferences": ["photography", "avoid crowds"],
+    "relevance_judgments": {
+      "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9": 3,
+      "538626cf8d3633eb8a16c58db2b25e3090c0bc4ef1a740ca0c5f0b2e9a8757a5": 2,
+      "a1408824e24fe59c94e023c0fd408fb164eadfa159b162ceaab378dcc37f3494": 1
+    }
+  },
+  {
+    "query_id": "paris-literary-14",
+    "query": "Paris literary neighborhood and Luxembourg Garden slow day",
+    "destination": "Paris",
+    "preferences": ["literature", "gardens"],
+    "relevance_judgments": {
+      "02ede16d67d500ea993cf71fdbe8ef826b2f4369f3df2f732b5482f785891501": 3,
+      "7365a6738acc9985856868a5782806552711d76fc79e9d934943b6e3e55e5fef": 1
+    }
+  },
+  {
+    "query_id": "paris-live-rules-15",
+    "query": "How should I verify Paris museum opening and artwork availability?",
+    "destination": "Paris",
+    "preferences": ["museums"],
+    "relevance_judgments": {
+      "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b": 2,
+      "ea0448e9d6b34ea838050ff740a7f14e8d6ff8849c524e3e65d6a2f54e07020c": 2
+    }
+  },
+  {
+    "query_id": "paris-rest-16",
+    "query": "巴黎博物馆行程需要座椅、休息点和灵活预约",
+    "destination": "Paris",
+    "preferences": ["rest breaks", "flexible reservations"],
+    "relevance_judgments": {
+      "05d28f5d851ffc677653fae89f1cf013945dff9f14ff6091e02272fc904ae839": 3,
+      "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4": 2,
+      "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b": 1
+    }
+  },
+  {
+    "query_id": "shanghai-breakfast-17",
+    "query": "Shanghai breakfast planning with allergies and vegetarian preferences",
+    "destination": "Shanghai",
+    "preferences": ["food", "vegetarian"],
+    "relevance_judgments": {
+      "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2": 3,
+      "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7": 1
+    }
+  },
+  {
+    "query_id": "shanghai-market-18",
+    "query": "上海市场街巷美食采样和街头摄影礼仪",
+    "destination": "Shanghai",
+    "preferences": ["food", "photography"],
+    "relevance_judgments": {
+      "9a79bb72e0e2c55d1558c3f8adcc12d0d5df7c2dd14933f66671a51045612a4d": 3,
+      "a1408824e24fe59c94e023c0fd408fb164eadfa159b162ceaab378dcc37f3494": 2,
+      "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947": 1
+    }
+  },
+  {
+    "query_id": "shanghai-dinner-19",
+    "query": "Flexible Shanghai dinner area with a backup restaurant",
+    "destination": "Shanghai",
+    "preferences": ["food", "flexibility"],
+    "relevance_judgments": {
+      "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7": 3,
+      "150070ef57db0f414ade040101c77ee98c77091cff55ec6d5e45a9976ae64392": 1
+    }
+  },
+  {
+    "query_id": "shanghai-river-20",
+    "query": "Bund to Pudong river crossing with a reliable backup route",
+    "destination": "Shanghai",
+    "preferences": ["skyline", "transport"],
+    "relevance_judgments": {
+      "2a8754292bd523caa77948fb752dd0289a5b26f7b0c9ca57d72ccad18c267ee1": 3,
+      "daa7875de1b8160381613859fb75cad5b966ec8191c03ad1d7cb3a50959e3c48": 2
+    }
+  },
+  {
+    "query_id": "shanghai-metro-21",
+    "query": "上海地铁少换乘、大站预留时间、带行李",
+    "destination": "Shanghai",
+    "preferences": ["efficient transport", "luggage"],
+    "relevance_judgments": {
+      "0b0c3403046686412710c0acf9026fdc4daf74c1333933e0a846a077a4d6ff61": 3,
+      "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93": 1
+    }
+  },
+  {
+    "query_id": "shanghai-weather-22",
+    "query": "Shanghai rainy day walking route with a nearby indoor alternative",
+    "destination": "Shanghai",
+    "preferences": ["walking", "indoor backup"],
+    "relevance_judgments": {
+      "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93": 3,
+      "daa7875de1b8160381613859fb75cad5b966ec8191c03ad1d7cb3a50959e3c48": 1
+    }
+  },
+  {
+    "query_id": "shanghai-lanes-23",
+    "query": "上海法租界街巷慢节奏摄影并尊重居民",
+    "destination": "Shanghai",
+    "preferences": ["photography", "slow pace"],
+    "relevance_judgments": {
+      "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947": 3,
+      "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550": 2,
+      "a1408824e24fe59c94e023c0fd408fb164eadfa159b162ceaab378dcc37f3494": 1
+    }
+  },
+  {
+    "query_id": "shanghai-food-route-24",
+    "query": "Plan Shanghai food stops without crossing the city for one trend venue",
+    "destination": "Shanghai",
+    "preferences": ["food", "short transfers"],
+    "relevance_judgments": {
+      "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7": 3,
+      "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2": 2,
+      "0b0c3403046686412710c0acf9026fdc4daf74c1333933e0a846a077a4d6ff61": 1
+    }
+  }
+]

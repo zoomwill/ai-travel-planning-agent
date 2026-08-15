@@ -76,3 +76,32 @@ def test_review_round_and_recursion_limits_must_be_positive(
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **{field: value})
+
+
+def test_advanced_rag_settings_use_safe_defaults() -> None:
+    """P10 defaults describe one bounded local versioned pipeline."""
+
+    settings = Settings(_env_file=None)
+
+    assert settings.rag_pipeline_version == "advanced-v1"
+    assert settings.rag_child_collection == "travel_knowledge_children_v1"
+    assert settings.rag_query_variant_count == 4
+    assert settings.rag_final_parent_k <= settings.rag_rerank_top_k
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"rag_parent_chunk_size": 100, "rag_parent_chunk_overlap": 100},
+        {"rag_child_chunk_size": 50, "rag_child_chunk_overlap": 50},
+        {"rag_rerank_top_k": 2, "rag_final_parent_k": 3},
+        {"rag_query_variant_count": 9},
+    ],
+)
+def test_advanced_rag_settings_reject_invalid_relationships(
+    overrides: dict[str, object],
+) -> None:
+    """Invalid windows and result limits fail before indexing or retrieval."""
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **overrides)

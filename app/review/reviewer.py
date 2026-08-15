@@ -85,6 +85,7 @@ class PlanReviewer(Protocol):
         requirements: TripRequirements,
         search_summary: SearchSummary,
         retrieved_context: Sequence[str],
+        retrieval_error: str | None = None,
         remembered_preferences: Sequence[str],
         tool_errors: Sequence[SearchErrorEnvelope],
         review_round: int,
@@ -120,6 +121,7 @@ class DeterministicPlanReviewer:
         requirements: TripRequirements,
         search_summary: SearchSummary,
         retrieved_context: Sequence[str],
+        retrieval_error: str | None = None,
         remembered_preferences: Sequence[str],
         tool_errors: Sequence[SearchErrorEnvelope],
         review_round: int,
@@ -134,6 +136,7 @@ class DeterministicPlanReviewer:
             requirements,
             search_summary,
             tool_errors,
+            retrieval_error,
             issue_set,
         )
         feasibility = _score_feasibility(draft, requirements, issue_set)
@@ -184,6 +187,7 @@ def _score_completeness(
     requirements: TripRequirements,
     search_summary: SearchSummary,
     tool_errors: Sequence[SearchErrorEnvelope],
+    retrieval_error: str | None,
     issues: set[ReviewIssueCode],
 ) -> float:
     """Score required content and honest non-critical data disclosure."""
@@ -224,6 +228,9 @@ def _score_completeness(
     unavailable_kinds = {
         kind for kind, summary in search_summary.items() if summary["status"] == "error"
     } | {error["kind"] for error in tool_errors}
+    if retrieval_error is not None:
+        score -= 10
+        issues.add(ReviewIssueCode.NONCRITICAL_DATA_UNAVAILABLE)
     if unavailable_kinds:
         score -= 10
         issues.add(ReviewIssueCode.NONCRITICAL_DATA_UNAVAILABLE)

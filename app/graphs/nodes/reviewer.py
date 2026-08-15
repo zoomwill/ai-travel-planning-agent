@@ -39,6 +39,7 @@ async def reviewer_node(
             requirements=draft.requirements,
             search_summary=state.get("search_summary", {}),
             retrieved_context=state.get("retrieved_context", []),
+            retrieval_error=state.get("retrieval_error"),
             remembered_preferences=state.get("remembered_preferences", []),
             tool_errors=state.get("tool_errors", []),
             review_round=review_round,

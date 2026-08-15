@@ -1,0 +1,655 @@
+{
+  "child_count": 77,
+  "corpus_fingerprint": "6d9a30edca72a795c71f58f9aa63f208751ebb6d9225ca715a7795f9e33e969e",
+  "embedding_dimension": 384,
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "evaluation_k": 4,
+  "limitations": [
+    "The corpus is a small static local demo fixture, not live travel data.",
+    "Labels were written for this corpus and do not establish production quality.",
+    "The deterministic reranker is untrained and is not an LLM reranker.",
+    "A higher metric in this run does not guarantee broader retrieval quality."
+  ],
+  "modes": {
+    "bm25_only": {
+      "k": 4,
+      "metrics": {
+        "mrr_at_k": 0.5347222222222222,
+        "ndcg_at_k": 0.4040950225258431,
+        "precision_at_k": 0.25,
+        "recall_at_k": 0.4166666666666667
+      },
+      "mode": "bm25_only",
+      "query_count": 24,
+      "rankings": {
+        "paris-art-10": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-literary-14": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-live-rules-15": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-museum-09": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-museum-walk-11": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-photo-13": [
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b"
+        ],
+        "paris-rest-16": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-step-free-12": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4"
+        ],
+        "shanghai-breakfast-17": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947"
+        ],
+        "shanghai-dinner-19": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-food-route-24": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-lanes-23": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2"
+        ],
+        "shanghai-market-18": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947"
+        ],
+        "shanghai-metro-21": [
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-river-20": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-weather-22": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "tokyo-accessible-07": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-airport-03": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-calm-05": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-evening-08": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa"
+        ],
+        "tokyo-photo-pace-06": [
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca"
+        ],
+        "tokyo-quiet-photo-01": [
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca"
+        ],
+        "tokyo-rail-04": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-vintage-02": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ]
+      }
+    },
+    "dense_only": {
+      "k": 4,
+      "metrics": {
+        "mrr_at_k": 0.7326388888888888,
+        "ndcg_at_k": 0.6179385140268433,
+        "precision_at_k": 0.40625,
+        "recall_at_k": 0.7048611111111112
+      },
+      "mode": "dense_only",
+      "query_count": 24,
+      "rankings": {
+        "paris-art-10": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "ea0448e9d6b34ea838050ff740a7f14e8d6ff8849c524e3e65d6a2f54e07020c",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b"
+        ],
+        "paris-literary-14": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "02ede16d67d500ea993cf71fdbe8ef826b2f4369f3df2f732b5482f785891501",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085"
+        ],
+        "paris-live-rules-15": [
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "ea0448e9d6b34ea838050ff740a7f14e8d6ff8849c524e3e65d6a2f54e07020c"
+        ],
+        "paris-museum-09": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-museum-walk-11": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "02ede16d67d500ea993cf71fdbe8ef826b2f4369f3df2f732b5482f785891501"
+        ],
+        "paris-photo-13": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b"
+        ],
+        "paris-rest-16": [
+          "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4"
+        ],
+        "paris-step-free-12": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "05d28f5d851ffc677653fae89f1cf013945dff9f14ff6091e02272fc904ae839"
+        ],
+        "shanghai-breakfast-17": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "9a79bb72e0e2c55d1558c3f8adcc12d0d5df7c2dd14933f66671a51045612a4d",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93"
+        ],
+        "shanghai-dinner-19": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-food-route-24": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550"
+        ],
+        "shanghai-lanes-23": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "0b0c3403046686412710c0acf9026fdc4daf74c1333933e0a846a077a4d6ff61",
+          "daa7875de1b8160381613859fb75cad5b966ec8191c03ad1d7cb3a50959e3c48"
+        ],
+        "shanghai-market-18": [
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "9a79bb72e0e2c55d1558c3f8adcc12d0d5df7c2dd14933f66671a51045612a4d"
+        ],
+        "shanghai-metro-21": [
+          "0b0c3403046686412710c0acf9026fdc4daf74c1333933e0a846a077a4d6ff61",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "2a8754292bd523caa77948fb752dd0289a5b26f7b0c9ca57d72ccad18c267ee1"
+        ],
+        "shanghai-river-20": [
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "2a8754292bd523caa77948fb752dd0289a5b26f7b0c9ca57d72ccad18c267ee1",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "0b0c3403046686412710c0acf9026fdc4daf74c1333933e0a846a077a4d6ff61"
+        ],
+        "shanghai-weather-22": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "0b0c3403046686412710c0acf9026fdc4daf74c1333933e0a846a077a4d6ff61",
+          "daa7875de1b8160381613859fb75cad5b966ec8191c03ad1d7cb3a50959e3c48"
+        ],
+        "tokyo-accessible-07": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "607e4b1e6fc22013753b7940f6aab1f4d617949a280e5f01715dd51f66048e3f"
+        ],
+        "tokyo-airport-03": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "607e4b1e6fc22013753b7940f6aab1f4d617949a280e5f01715dd51f66048e3f",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa"
+        ],
+        "tokyo-calm-05": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "2b2960e3ee978d9cda7781067324f231cfca0af5711dbe8017e9990e111ebf47",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa"
+        ],
+        "tokyo-evening-08": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f"
+        ],
+        "tokyo-photo-pace-06": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57"
+        ],
+        "tokyo-quiet-photo-01": [
+          "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57"
+        ],
+        "tokyo-rail-04": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "607e4b1e6fc22013753b7940f6aab1f4d617949a280e5f01715dd51f66048e3f"
+        ],
+        "tokyo-vintage-02": [
+          "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "29712488149841c666d621705555e27aac1ddb3a7215f2dd42fbb6f25c96af3f"
+        ]
+      }
+    },
+    "hybrid_reranked": {
+      "k": 4,
+      "metrics": {
+        "mrr_at_k": 0.7881944444444445,
+        "ndcg_at_k": 0.6913584601630851,
+        "precision_at_k": 0.375,
+        "recall_at_k": 0.642361111111111
+      },
+      "mode": "hybrid_reranked",
+      "query_count": 24,
+      "rankings": {
+        "paris-art-10": [
+          "ea0448e9d6b34ea838050ff740a7f14e8d6ff8849c524e3e65d6a2f54e07020c",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b"
+        ],
+        "paris-literary-14": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-live-rules-15": [
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085"
+        ],
+        "paris-museum-09": [
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085"
+        ],
+        "paris-museum-walk-11": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "05d28f5d851ffc677653fae89f1cf013945dff9f14ff6091e02272fc904ae839",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-photo-13": [
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b"
+        ],
+        "paris-rest-16": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b"
+        ],
+        "paris-step-free-12": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4",
+          "05d28f5d851ffc677653fae89f1cf013945dff9f14ff6091e02272fc904ae839"
+        ],
+        "shanghai-breakfast-17": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550"
+        ],
+        "shanghai-dinner-19": [
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550"
+        ],
+        "shanghai-food-route-24": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7",
+          "9a79bb72e0e2c55d1558c3f8adcc12d0d5df7c2dd14933f66671a51045612a4d",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93"
+        ],
+        "shanghai-lanes-23": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2"
+        ],
+        "shanghai-market-18": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550"
+        ],
+        "shanghai-metro-21": [
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "0b0c3403046686412710c0acf9026fdc4daf74c1333933e0a846a077a4d6ff61",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2"
+        ],
+        "shanghai-river-20": [
+          "2a8754292bd523caa77948fb752dd0289a5b26f7b0c9ca57d72ccad18c267ee1",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-weather-22": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "daa7875de1b8160381613859fb75cad5b966ec8191c03ad1d7cb3a50959e3c48",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2"
+        ],
+        "tokyo-accessible-07": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "d25bf186ff3beb2a4624681aa8a3d9a8bce04fb13000421e830611081501ae82"
+        ],
+        "tokyo-airport-03": [
+          "607e4b1e6fc22013753b7940f6aab1f4d617949a280e5f01715dd51f66048e3f",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "d25bf186ff3beb2a4624681aa8a3d9a8bce04fb13000421e830611081501ae82",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca"
+        ],
+        "tokyo-calm-05": [
+          "2b2960e3ee978d9cda7781067324f231cfca0af5711dbe8017e9990e111ebf47",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa"
+        ],
+        "tokyo-evening-08": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57"
+        ],
+        "tokyo-photo-pace-06": [
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa"
+        ],
+        "tokyo-quiet-photo-01": [
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "cfbc64cbd707fdda6412174c283c44b8c2925138f1de8e2f0fe512e0446b332f",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57"
+        ],
+        "tokyo-rail-04": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "607e4b1e6fc22013753b7940f6aab1f4d617949a280e5f01715dd51f66048e3f"
+        ],
+        "tokyo-vintage-02": [
+          "29712488149841c666d621705555e27aac1ddb3a7215f2dd42fbb6f25c96af3f",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ]
+      }
+    },
+    "hybrid_rrf": {
+      "k": 4,
+      "metrics": {
+        "mrr_at_k": 0.53125,
+        "ndcg_at_k": 0.4093608747418827,
+        "precision_at_k": 0.25,
+        "recall_at_k": 0.4236111111111111
+      },
+      "mode": "hybrid_rrf",
+      "query_count": 24,
+      "rankings": {
+        "paris-art-10": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-literary-14": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-live-rules-15": [
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-museum-09": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-museum-walk-11": [
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-photo-13": [
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b"
+        ],
+        "paris-rest-16": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "6eda0173804bf1dc1377f8d8375922f7c210903a0681380ccfbe3245644d23f9"
+        ],
+        "paris-step-free-12": [
+          "d833b10a2036de3422ca66598592d805d5bc2548ed21e1677c13fb83b0b18085",
+          "7f61f6498cfaa4e493504eb2d5629fc105b8b5768bb9ad024c4e693ac2a70dd4",
+          "3c6b4ef8c0e6ac638254079b697b8c9d9f82e2eaf41574bf7f7a80a0b3319b4b",
+          "f3837d359e02f4874a1a8e904b907c5db5bde7068bce72cffb00f1d08beb38f4"
+        ],
+        "shanghai-breakfast-17": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-dinner-19": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-food-route-24": [
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-lanes-23": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2"
+        ],
+        "shanghai-market-18": [
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-metro-21": [
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "shanghai-river-20": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7",
+          "f160d3d414b67787dd08146e39dd7abca7f9a08aee8cd967a8b032625418a947"
+        ],
+        "shanghai-weather-22": [
+          "a4177b2c62d858efb7a3506b7576770c880b592d64f3212d9f963d1dda934c93",
+          "ff10a57a91b61ff1bde1ae84c04b2aea4b50f692653c5c449997e4b64356c550",
+          "f4a54c1390f13798d52e6f3f00c203f23088b61c1a7e4dc91bdc0add1f0a9ff2",
+          "d5be68604d03a82f4326b81a8d8a355105488a4588771ba9f413f208847c0bd7"
+        ],
+        "tokyo-accessible-07": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-airport-03": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-calm-05": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-evening-08": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-photo-pace-06": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa"
+        ],
+        "tokyo-quiet-photo-01": [
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b",
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa"
+        ],
+        "tokyo-rail-04": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ],
+        "tokyo-vintage-02": [
+          "689761c591eba82bb0c0d0abcd409248ada1d1fe94ff2c2ea94809ef8b3e7f57",
+          "c87d929030a2f8688cf13a87bb682803853eb9130694e0f0466240cf3a5386ca",
+          "f4f867f11c46efdd39c0b0faada1063662d11f2c9567a4191b1577636b5fa9fa",
+          "c7b4f068f3df6a13e174509a2ca06e298ae22599b091f6e4dd895afe282c9f1b"
+        ]
+      }
+    }
+  },
+  "parent_count": 36,
+  "pipeline_config": {
+    "dense_top_k": 20,
+    "final_parent_k": 4,
+    "fusion_top_k": 20,
+    "query_variant_count": 4,
+    "rerank_top_k": 8,
+    "rrf_k": 60,
+    "sparse_top_k": 20
+  },
+  "pipeline_version": "advanced-v1",
+  "query_count": 24
+}

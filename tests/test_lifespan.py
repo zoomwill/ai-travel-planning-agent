@@ -11,6 +11,7 @@ from app.core.config import Settings
 from app.core.persistence import PersistenceResources
 from app.core.resources import AppResources, close_app_resources, create_app_resources
 from app.main import create_app
+from app.rag.advanced_retriever import AdvancedRetriever
 from tests.helpers import (
     FakeEngine,
     FakeRedis,
@@ -120,6 +121,7 @@ def test_persistence_startup_failure_still_closes_infrastructure() -> None:
     @asynccontextmanager
     async def failing_persistence_factory(
         _: Settings,
+        __: AdvancedRetriever | None = None,
     ) -> AsyncIterator[PersistenceResources]:
         raise RuntimeError("persistence startup failed")
         yield

@@ -19,10 +19,11 @@ from app.graphs.nodes import (
 )
 from app.graphs.nodes.planner import route_after_planner
 from app.graphs.nodes.prepare_search_tasks import dispatch_search_tasks
-from app.graphs.nodes.retriever import ContextRetriever, retriever_node
+from app.graphs.nodes.retriever import ContextRetriever, advanced_retriever_node
 from app.graphs.nodes.reviewer import reviewer_node, route_after_review
 from app.graphs.nodes.search_worker import search_worker_node
 from app.graphs.state import TravelPlanState
+from app.rag.advanced_retriever import AdvancedRetriever
 from app.rag.retriever import retrieve_travel_context
 from app.review.reviewer import DeterministicPlanReviewer, PlanReviewer
 from app.search.backend import DeterministicMockSearchBackend, SearchBackend
@@ -39,6 +40,7 @@ TravelPlanningGraph = CompiledStateGraph[
 def build_travel_planning_graph(
     context_retriever: ContextRetriever = retrieve_travel_context,
     *,
+    advanced_retriever: AdvancedRetriever | None = None,
     search_backend: SearchBackend | None = None,
     plan_reviewer: PlanReviewer | None = None,
     review_score_threshold: float = 80.0,
@@ -51,10 +53,14 @@ def build_travel_planning_graph(
     backend = search_backend or DeterministicMockSearchBackend()
     reviewer = plan_reviewer or DeterministicPlanReviewer()
 
-    def configured_retriever_node(state: TravelPlanState) -> TravelPlanState:
+    async def configured_retriever_node(state: TravelPlanState) -> dict[str, Any]:
         """Run the Retriever node with this graph's injected dependency."""
 
-        return retriever_node(state, context_retriever=context_retriever)
+        return await advanced_retriever_node(
+            state,
+            context_retriever=context_retriever,
+            advanced_retriever=advanced_retriever,
+        )
 
     async def configured_search_worker_node(
         worker_input: SearchWorkerInput,

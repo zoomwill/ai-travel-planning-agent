@@ -14,5 +14,9 @@ build/
 .idea/
 .vscode/
 
+# P10 creates these locally from committed knowledge fixtures.
+data/generated/
+.model-cache/
+
 # Local R session history
 .Rhistory

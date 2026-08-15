@@ -108,3 +108,27 @@ edges either revise the draft or finalize it. The loop has a configurable thresh
 maximum review count, and a standalone LangGraph recursion limit. It still uses no LLM or real
 provider. Read
 [`docs/16_PLANNER_REVIEWER_REFLECTION.md`](docs/16_PLANNER_REVIEWER_REFLECTION.md).
+
+Phase P10 replaces P06's hash-only child retrieval inside the Agent graph with a versioned hybrid
+pipeline: local Sentence Transformer embeddings, deterministic multi-query expansion, BM25,
+rank-only RRF fusion, transparent reranking, child-to-parent context, and Redis cache-aside. The
+old `travel_knowledge` collection is retained; P10 uses the separate
+`travel_knowledge_children_v1` collection. Read
+[`docs/17_ADVANCED_RAG.md`](docs/17_ADVANCED_RAG.md) before preparing the model or index.
+
+P10 preparation is deliberately explicit. Ordinary imports, application startup, and pytest do
+not download or index a model:
+
+```bash
+docker compose up -d --wait --wait-timeout 120
+uv run python scripts/prepare_rag_model.py
+uv run python scripts/index_advanced_knowledge.py
+uv run python scripts/index_advanced_knowledge.py
+uv run python scripts/evaluate_advanced_rag.py
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Local diagnostic endpoints are `GET /api/v1/rag/status` and `POST /api/v1/rag/search`. They have
+no authentication and are suitable only for local development. The 12 Markdown files are static,
+original demo fixtures—not official or live travel data. Always verify current prices, opening
+hours, transport notices, weather, accessibility, and availability from an authoritative source.

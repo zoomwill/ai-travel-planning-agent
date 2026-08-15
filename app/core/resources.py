@@ -11,6 +11,7 @@ from app.core.config import Settings
 from app.infrastructure.chroma import ChromaClientProvider
 from app.infrastructure.postgres import create_postgres_engine
 from app.infrastructure.redis import create_redis_client
+from app.rag.runtime import AdvancedRagRuntime, create_advanced_rag_runtime
 
 
 @dataclass(slots=True)
@@ -21,6 +22,7 @@ class AppResources:
     postgres_engine: AsyncEngine
     redis_client: Redis
     chroma_client: ChromaClientProvider
+    rag_runtime: AdvancedRagRuntime | None = None
 
 
 ResourceFactory = Callable[[Settings], Awaitable[AppResources]]
@@ -37,11 +39,13 @@ async def create_app_resources(settings: Settings) -> AppResources:
         postgres_engine = create_postgres_engine(settings)
         redis_client = create_redis_client(settings)
         chroma_client = ChromaClientProvider(settings)
+        rag_runtime = await create_advanced_rag_runtime(settings, redis_client)
         return AppResources(
             settings=settings,
             postgres_engine=postgres_engine,
             redis_client=redis_client,
             chroma_client=chroma_client,
+            rag_runtime=rag_runtime,
         )
     except BaseException:
         if chroma_client is not None:

@@ -362,3 +362,76 @@ Record deviations from source pseudocode and important engineering decisions her
   preference matching is intentionally simple, English-oriented, and not benchmarked. P09 adds no
   prompt API, Qwen/OpenAI/Anthropic integration, MCP, SSE, advanced RAG, authentication, frontend,
   real travel API, database business table, or booking action.
+
+### 2026-08-15 — Phase P10 advanced hybrid RAG
+
+- Source intent: Upgrade P06 into a real local semantic and lexical retrieval pipeline while
+  preserving P07 persistence/memory, P08 `Send` search, and P09 review. No remote LLM, real travel
+  API, MCP, SSE, authentication, or destructive data migration is included.
+- Dependencies and platform: `uv add rank-bm25 sentence-transformers` resolved direct versions
+  `rank-bm25==0.2.2` and `sentence-transformers==5.7.0` on CPython 3.12.13 and Apple Silicon.
+  Torch 2.13.0, Transformers 5.15.0, and scikit-learn 1.9.0 are transitive dependencies;
+  scikit-learn was not added directly for evaluation metrics. The public multilingual MiniLM
+  model downloaded and loaded successfully on CPU and reported 384 dimensions.
+- Sentence Transformers API deviation: The prompt asks for `encode_document()`, `encode_query()`,
+  and the older dimension method. Version 5.7.0 provides the two retrieval encode methods but
+  warns that `get_sentence_embedding_dimension()` was renamed. The adapter now prefers the
+  current public `get_embedding_dimension()` and retains a public legacy fallback. It prefers
+  retrieval-specific encode methods and retains `encode()` only as a compatibility fallback.
+- Corpus and identity: Eight original static demo guides were added without web scraping, taking
+  the corpus to 12 Markdown files. Markdown-heading parents use 1,200/150 fallback windows;
+  children use 350/50 windows inside parents. The actual index has 36 parents and 77 children.
+  Canonical JSON plus SHA-256 defines parent IDs, child IDs, cache keys, and the actual corpus
+  fingerprint `6d9a30edca72a795c71f58f9aa63f208751ebb6d9225ca715a7795f9e33e969e`.
+- Chroma API choice: Installed Chroma client 1.5.9 uses the supported local `HttpClient`,
+  `get_or_create_collection(configuration=...)`, explicit `query_embeddings`, `where`, `upsert`,
+  `get`, and exact-ID `delete`. The separate `travel_knowledge_children_v1` collection configures
+  cosine space only; all other HNSW settings retain Chroma defaults. The old `travel_knowledge`
+  collection remained present with its nine P06 records. No reset or collection deletion ran.
+- Index safety: Children carry primitive Chroma metadata. Parent JSON uses Redis keys
+  `rag:parent:advanced-v1:{parent_id}` plus an ignored generated local manifest. Running the
+  indexer twice produced identical 12/36/77 counts and fingerprint. A fixed temporary stale child
+  increased the collection to 78; the normal indexer announced one exact deletion and verified
+  return to 77. No broad delete, scan, Redis flush, checkpoint removal, or volume deletion ran.
+- Retrieval algorithms: The BM25Okapi tokenizer case-folds Latin tokens and uses deterministic
+  CJK characters/bigrams. Four deterministic query variants retain original query first and then
+  combine only validated destination/current/remembered preferences. RRF uses
+  `sum(1 / (60 + rank))`; no raw BM25 score is added to vector distance. Parent reranking uses
+  fixed untrained weights: normalized RRF 0.35, city 0.20, query coverage 0.20, current preference
+  0.10, remembered preference 0.10, title/heading 0.05. It is not an LLM reranker.
+- Redis cache/API behavior: Cache keys hash the required pipeline/fingerprint/model/query/filter/K
+  configuration, use prefix `rag:cache:advanced-v1:`, and values contain final parent JSON with
+  `SET ... EX 3600`. P10 adds an application-level external-operation timeout around redis-py.
+  After one parent timeout, that runtime uses its local manifest for remaining parent reads.
+  Real HTTP returned miss then hit for identical Chinese input; the hit kept identical parent IDs.
+  The RAG status/search endpoints return safe local diagnostics and deliberately have no
+  authentication.
+- Graph/persistence behavior: Lifespan creates the model, BM25, manifest stores, cache, and
+  retriever once without downloading or indexing. LangGraph State contains only final contexts,
+  variants, parent IDs, JSON-safe diagnostics, and a safe error. Reused-thread fields use
+  `Overwrite`; P09 revision does not rerun RAG. Reviewer receives retrieval unavailability as a
+  non-critical data issue. Strict MessagePack tests contain no vectors or clients.
+- Evaluation deviation and result: Production returns four parents, so the transparent local
+  metrics run at `K=4` rather than the prompt's suggested `K=5`. Twenty-four fixed English/Chinese
+  queries have manually written graded parent labels from the current index. Actual macro results
+  were: dense `P=.406250, R=.704861, MRR=.732639, NDCG=.617939`; BM25
+  `.250000, .416667, .534722, .404095`; hybrid RRF
+  `.250000, .423611, .531250, .409361`; hybrid reranked
+  `.375000, .642361, .788194, .691358`. Hybrid reranked improved MRR/NDCG over dense on this
+  fixture but reduced Precision/Recall; no general quality or performance improvement is claimed.
+- Actual acceptance: Chinese retrieval returned four unique Tokyo parents with dense and sparse
+  candidates and no embedding payload. Paris filtering returned four Paris parents. A persistent
+  Tokyo plan retained P08's five results and P09's one-round accepted review; its second same-thread
+  Paris request had zero parent-ID overlap, reset review history to one, and retained the explicit
+  remembered preference. With Redis stopped, a new request returned in 6.07 seconds with
+  `cache_status=unavailable`, dense/sparse results, and four Paris parents from local fallback.
+  Redis was restored and all three infrastructure probes passed.
+- Final verification: Ruff lint and format passed, mypy found no issues in 90 application files,
+  and ordinary pytest passed 268 tests with six explicitly skipped Docker tests. Explicit
+  integration then passed all six tests with 268 ordinary tests deselected. The only warning was
+  the existing Starlette TestClient/httpx deprecation warning. Both temporary Uvicorn processes
+  shut down cleanly and port 8000 had no listener afterward.
+- Limits: The corpus and judgments are small local fixtures, not live travel facts or a production
+  benchmark. Deterministic expansion/reranking is replaceable architecture, not real LLM use.
+  Current hours, prices, inventory, weather, transport notices, and accessibility must be verified
+  externally. The existing Starlette TestClient/httpx deprecation warning remains.

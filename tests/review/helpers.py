@@ -79,6 +79,7 @@ class ScriptedPlanReviewer:
         requirements: TripRequirements,
         search_summary: SearchSummary,
         retrieved_context: Sequence[str],
+        retrieval_error: str | None = None,
         remembered_preferences: Sequence[str],
         tool_errors: Sequence[SearchErrorEnvelope],
         review_round: int,
@@ -87,7 +88,14 @@ class ScriptedPlanReviewer:
     ) -> PlanReview:
         """Return the next script entry without consulting time, random, or network."""
 
-        del requirements, search_summary, retrieved_context, remembered_preferences, tool_errors
+        del (
+            requirements,
+            search_summary,
+            retrieved_context,
+            retrieval_error,
+            remembered_preferences,
+            tool_errors,
+        )
         step = self.steps[min(self.calls, len(self.steps) - 1)]
         self.calls += 1
         self.drafts.append(draft)

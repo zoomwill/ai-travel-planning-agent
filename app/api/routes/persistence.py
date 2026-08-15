@@ -102,6 +102,10 @@ def _make_initial_state(payload: ThreadPlanRequest) -> TravelPlanState:
         "next_agent": None,
         "remembered_preferences": [],
         "retrieved_context": [],
+        "retrieval_query_variants": [],
+        "retrieval_parent_ids": [],
+        "retrieval_diagnostics": None,
+        "retrieval_error": None,
         "search_tasks": [],
         "search_results": [],
         "tool_errors": [],
@@ -231,6 +235,10 @@ async def create_thread_plan(
         final_score=(review_summary.scores.overall_score if review_summary is not None else None),
         finalization_reason=final_state.get("finalization_reason"),
         review_summary=review_summary,
+        retrieval_query_variants=final_state.get("retrieval_query_variants", []),
+        retrieval_parent_ids=final_state.get("retrieval_parent_ids", []),
+        retrieval_diagnostics=final_state.get("retrieval_diagnostics"),
+        retrieval_error=final_state.get("retrieval_error"),
     )
 
 
@@ -278,6 +286,10 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
         finalization_reason=values.get("finalization_reason"),
         draft_present=values.get("draft_plan") is not None,
         review_history_count=len(values.get("review_history", [])),
+        retrieval_query_variant_count=len(values.get("retrieval_query_variants", [])),
+        retrieval_parent_ids=values.get("retrieval_parent_ids", []),
+        retrieval_diagnostics=values.get("retrieval_diagnostics"),
+        retrieval_error=values.get("retrieval_error"),
         travel_plan=travel_plan,
         error=values.get("error"),
     )

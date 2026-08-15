@@ -1,0 +1,195 @@
+"""Run all four P10 retrieval modes against the fixed human-labeled dataset."""
+
+import asyncio
+import sys
+from pathlib import Path
+
+from app.core.config import Settings
+from app.infrastructure.redis import create_redis_client
+from app.rag.evaluation import (
+    EvaluationQuery,
+    ModeEvaluation,
+    evaluate_mode,
+    load_evaluation_queries,
+    write_evaluation_json,
+)
+from app.rag.manifest import load_rag_manifest
+from app.rag.models import RagIndexManifest, RetrievalMode
+from app.rag.runtime import create_advanced_rag_runtime
+
+REPORT_JSON = Path("reports/p10_rag_evaluation.json")
+REPORT_MARKDOWN = Path("docs/evaluation/P10_RAG_EVALUATION.md")
+EVALUATION_K = 4
+MODES: tuple[RetrievalMode, ...] = (
+    "dense_only",
+    "bm25_only",
+    "hybrid_rrf",
+    "hybrid_reranked",
+)
+
+
+async def evaluate() -> bool:
+    """Load the prepared runtime, validate labels, and write actual reports."""
+
+    settings = Settings()
+    redis_client = create_redis_client(settings)
+    try:
+        manifest = load_rag_manifest(settings.rag_pipeline_version)
+        queries = load_evaluation_queries()
+        _validate_dataset(queries, {parent.parent_id for parent in manifest.parents})
+        runtime = await create_advanced_rag_runtime(settings, redis_client)
+        if not runtime.indexed:
+            raise RuntimeError("the explicit advanced index is not ready")
+        evaluations = [
+            await evaluate_mode(
+                runtime.retriever,
+                queries,
+                mode=mode,
+                k=EVALUATION_K,
+            )
+            for mode in MODES
+        ]
+        report = {
+            "pipeline_version": settings.rag_pipeline_version,
+            "corpus_fingerprint": manifest.metadata.corpus_fingerprint,
+            "query_count": len(queries),
+            "parent_count": manifest.metadata.parent_count,
+            "child_count": manifest.metadata.child_count,
+            "embedding_model": settings.rag_embedding_model,
+            "embedding_dimension": manifest.metadata.embedding_dimension,
+            "evaluation_k": EVALUATION_K,
+            "pipeline_config": {
+                "query_variant_count": settings.rag_query_variant_count,
+                "dense_top_k": settings.rag_dense_top_k,
+                "sparse_top_k": settings.rag_sparse_top_k,
+                "fusion_top_k": settings.rag_fusion_top_k,
+                "rerank_top_k": settings.rag_rerank_top_k,
+                "final_parent_k": settings.rag_final_parent_k,
+                "rrf_k": settings.rag_rrf_k,
+            },
+            "modes": {item.mode: item.model_dump(mode="json") for item in evaluations},
+            "limitations": [
+                "The corpus is a small static local demo fixture, not live travel data.",
+                "Labels were written for this corpus and do not establish production quality.",
+                "The deterministic reranker is untrained and is not an LLM reranker.",
+                "A higher metric in this run does not guarantee broader retrieval quality.",
+            ],
+        }
+        write_evaluation_json(REPORT_JSON, report)
+        _write_markdown_report(settings, manifest.metadata, evaluations)
+    except Exception as exc:
+        print(f"FAIL RAG evaluation: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return False
+    finally:
+        await redis_client.aclose()
+
+    print(f"PASS evaluation queries: {len(queries)}")
+    for item in evaluations:
+        metrics = item.metrics
+        print(
+            f"PASS {item.mode}: P@{item.k}={metrics.precision_at_k:.6f} "
+            f"R@{item.k}={metrics.recall_at_k:.6f} "
+            f"MRR@{item.k}={metrics.mrr_at_k:.6f} "
+            f"NDCG@{item.k}={metrics.ndcg_at_k:.6f}"
+        )
+    print(f"PASS JSON report: {REPORT_JSON}")
+    print(f"PASS Markdown report: {REPORT_MARKDOWN}")
+    return True
+
+
+def _validate_dataset(queries: list[EvaluationQuery], parent_ids: set[str]) -> None:
+    """Require 24 fixed queries and labels that all belong to the current corpus."""
+
+    if len(queries) < 24:
+        raise ValueError("the P10 evaluation dataset needs at least 24 queries")
+    unknown = sorted(
+        {
+            parent_id
+            for query in queries
+            for parent_id in query.relevance_judgments
+            if parent_id not in parent_ids
+        }
+    )
+    if unknown:
+        raise ValueError("evaluation judgments reference parent IDs outside the current index")
+    if any(
+        grade < 0 or grade > 3 for query in queries for grade in query.relevance_judgments.values()
+    ):
+        raise ValueError("evaluation relevance grades must be between zero and three")
+
+
+def _write_markdown_report(
+    settings: Settings,
+    manifest: RagIndexManifest,
+    evaluations: list[ModeEvaluation],
+) -> None:
+    """Write a beginner-readable report from the same actual metric objects."""
+
+    lines = [
+        "# P10 Advanced RAG Offline Evaluation",
+        "",
+        "> This report is generated by `scripts/evaluate_advanced_rag.py` from the fixed",
+        "> local demo corpus. It is not a production benchmark or live travel-data test.",
+        "",
+        "## Evaluated setup",
+        "",
+        f"- Corpus fingerprint: `{manifest.corpus_fingerprint}`",
+        f"- Query count: `{evaluations[0].query_count if evaluations else 0}`",
+        f"- Parent count: `{manifest.parent_count}`",
+        f"- Child count: `{manifest.child_count}`",
+        f"- Embedding model: `{settings.rag_embedding_model}`",
+        f"- Embedding dimension: `{manifest.embedding_dimension}`",
+        f"- Evaluation cutoff: `K={EVALUATION_K}`",
+        f"- RRF constant: `k={settings.rag_rrf_k}`",
+        f"- Query variants: `{settings.rag_query_variant_count}`",
+        f"- Dense / sparse top K: `{settings.rag_dense_top_k}` / `{settings.rag_sparse_top_k}`",
+        f"- Fusion / rerank / final K: `{settings.rag_fusion_top_k}` / "
+        f"`{settings.rag_rerank_top_k}` / `{settings.rag_final_parent_k}`",
+        f"- Parent size/overlap: `{settings.rag_parent_chunk_size}` / "
+        f"`{settings.rag_parent_chunk_overlap}`",
+        f"- Child size/overlap: `{settings.rag_child_chunk_size}` / "
+        f"`{settings.rag_child_chunk_overlap}`",
+        "",
+        "## Actual macro-average results",
+        "",
+        "| Mode | Precision@K | Recall@K | MRR@K | NDCG@K |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    for item in evaluations:
+        metrics = item.metrics
+        lines.append(
+            f"| `{item.mode}` | {metrics.precision_at_k:.6f} | "
+            f"{metrics.recall_at_k:.6f} | {metrics.mrr_at_k:.6f} | "
+            f"{metrics.ndcg_at_k:.6f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Precision and recall treat every judgment above zero as relevant. MRR uses the",
+            "first relevant parent. NDCG also uses the 1–3 relevance grade, so placing a",
+            "highly relevant parent earlier receives more credit.",
+            "",
+            "## Limits",
+            "",
+            "- The 12 Markdown files are small, static, original demo fixtures.",
+            "- The 24 human-written labels only describe this fixed corpus.",
+            "- The deterministic reranker has fixed, untrained weights and is not an LLM.",
+            "- Results may show no improvement; no ranking mode is required to beat "
+            "every baseline.",
+            "- Current opening hours, prices, availability, weather, and transport "
+            "notices are absent.",
+            "",
+        ]
+    )
+    REPORT_MARKDOWN.parent.mkdir(parents=True, exist_ok=True)
+    REPORT_MARKDOWN.write_text("\n".join(lines), encoding="utf-8")
+
+
+def main() -> int:
+    """Return nonzero if the prepared model, index, labels, or evaluation fail."""
+
+    return 0 if asyncio.run(evaluate()) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

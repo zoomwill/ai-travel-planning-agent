@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.models import TravelPlan, TripRequirements
+from app.rag.models import RetrievalDiagnostics
 from app.review.models import FinalizationReason, PlanReview, ReviewStatus
 from app.search.models import SearchErrorEnvelope, SearchSummary
 
@@ -39,6 +40,10 @@ class ThreadPlanResponse(BaseModel):
     final_score: float | None = Field(default=None, ge=0, le=100)
     finalization_reason: FinalizationReason | None = None
     review_summary: PlanReview | None = None
+    retrieval_query_variants: list[str] = Field(default_factory=list)
+    retrieval_parent_ids: list[str] = Field(default_factory=list)
+    retrieval_diagnostics: RetrievalDiagnostics | None = None
+    retrieval_error: str | None = None
 
 
 class ThreadStateResponse(BaseModel):
@@ -58,6 +63,10 @@ class ThreadStateResponse(BaseModel):
     finalization_reason: FinalizationReason | None = None
     draft_present: bool = False
     review_history_count: int = Field(default=0, ge=0)
+    retrieval_query_variant_count: int = Field(default=0, ge=0)
+    retrieval_parent_ids: list[str] = Field(default_factory=list)
+    retrieval_diagnostics: RetrievalDiagnostics | None = None
+    retrieval_error: str | None = None
     travel_plan: TravelPlan | None = None
     error: str | None = None
 
