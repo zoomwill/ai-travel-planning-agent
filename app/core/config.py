@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +34,18 @@ class Settings(BaseSettings):
     chroma_ssl: bool = False
 
     infrastructure_timeout_seconds: float = Field(default=2.0, gt=0)
+
+    travel_search_backend_mode: Literal["direct", "mcp"] = "direct"
+    mcp_http_host: Literal["127.0.0.1"] = "127.0.0.1"
+    mcp_http_port: int = Field(default=9001, ge=1, le=65535)
+    mcp_http_path: str = Field(default="/mcp", pattern=r"^/[A-Za-z0-9._~/-]+$")
+    mcp_http_url: str = ""
+    mcp_tool_timeout_seconds: float = Field(default=8.0, gt=0)
+    mcp_discovery_timeout_seconds: float = Field(default=15.0, gt=0)
+    mcp_max_retries: int = Field(default=1, ge=0, le=3)
+    mcp_require_all_tools: bool = True
+    mcp_enable_stdio_server: bool = True
+    mcp_enable_http_server: bool = True
 
     review_score_threshold: float = Field(default=80.0, ge=0, le=100)
     review_max_rounds: int = Field(default=3, ge=1)
@@ -74,7 +87,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_rag_relationships(self) -> "Settings":
-        """Reject RAG settings that would create invalid windows or result limits."""
+        """Reject settings that would create invalid RAG or local MCP behavior."""
 
         if self.rag_parent_chunk_overlap >= self.rag_parent_chunk_size:
             raise ValueError("rag_parent_chunk_overlap must be smaller than parent chunk size")
@@ -82,6 +95,23 @@ class Settings(BaseSettings):
             raise ValueError("rag_child_chunk_overlap must be smaller than child chunk size")
         if self.rag_final_parent_k > self.rag_rerank_top_k:
             raise ValueError("rag_final_parent_k cannot exceed rag_rerank_top_k")
+        expected_mcp_url = f"http://{self.mcp_http_host}:{self.mcp_http_port}{self.mcp_http_path}"
+        if not self.mcp_http_url:
+            self.mcp_http_url = expected_mcp_url
+        parsed_mcp_url = urlsplit(self.mcp_http_url)
+        if (
+            parsed_mcp_url.scheme != "http"
+            or parsed_mcp_url.hostname != self.mcp_http_host
+            or parsed_mcp_url.port != self.mcp_http_port
+            or parsed_mcp_url.path != self.mcp_http_path
+            or parsed_mcp_url.username is not None
+            or parsed_mcp_url.password is not None
+            or parsed_mcp_url.query
+            or parsed_mcp_url.fragment
+        ):
+            raise ValueError(
+                "mcp_http_url must exactly match the configured local host, port, and path"
+            )
         return self
 
     @property

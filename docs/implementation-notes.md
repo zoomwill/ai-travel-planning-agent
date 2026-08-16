@@ -435,3 +435,63 @@ Record deviations from source pseudocode and important engineering decisions her
   benchmark. Deterministic expansion/reranking is replaceable architecture, not real LLM use.
   Current hours, prices, inventory, weather, transport notices, and accessibility must be verified
   externally. The existing Starlette TestClient/httpx deprecation warning remains.
+
+### 2026-08-16 — Phase P11 local MCP travel-tool layer
+
+- Source and phase intent: The original phase plan places MCP earlier and labels later persistence
+  work as P11. The current user-directed sequence has completed persistence, parallel search,
+  reflection, and advanced RAG as P07–P10 and explicitly assigns MCP to P11, so the current prompt
+  controls numbering. No P12, SSE, LLM tool selection, real provider, MCP resources/prompts,
+  sampling, elicitation, OAuth, or public deployment was added.
+- Resolved APIs: `uv add` resolved FastMCP 3.4.7, `langchain-mcp-adapters` 0.3.2, and the official
+  MCP SDK 1.29.0. FastMCP STDIO uses `mcp.run()`; Streamable HTTP uses
+  `mcp.run(transport="http", host="127.0.0.1", port=..., path="/mcp")`. The adapter uses
+  `MultiServerMCPClient`, `transport="stdio"` and documented `transport="http"`, then
+  `await client.get_tools()`. It is configured with `handle_tool_errors=False` so the application
+  owns safe error mapping.
+- Structured output: A real adapter 0.3.2 HTTP call was executed. `BaseTool.ainvoke()` returned a
+  public LangChain `ToolMessage`; its public `artifact` was a dict containing only
+  `structured_content`, whose value was the complete `MCPToolResponse`. The decoder prefers that
+  field and also strictly supports a complete JSON string and the adapter's one-text-block
+  fallback. It uses no private classes, regex extraction, or raw-payload echo.
+- Architecture: Independent `travel-local-tools` STDIO and `travel-search-tools` HTTP FastMCP
+  Servers reuse the P03 provider functions through `asyncio.to_thread()`. A name-based registry
+  rejects duplicate, missing, and unexpected tools. A bounded invoker applies an eight-second
+  default timeout and at most one retry to transient transport failures. `MCPTravelSearchBackend`
+  implements the existing P08 `SearchBackend`, so Search Worker, five-way `Send`, reviewer, RAG,
+  checkpoints, and memory do not select or store MCP objects.
+- Route boundary deviation: The existing P08 `SearchBackend.get_route(origin, destination)` does
+  not receive the full trip requirements. To preserve that stable Protocol and avoid modifying
+  Search Worker or existing test backends, the MCP backend creates a deterministic internal
+  one-day requirements carrier solely for route request metadata; the route provider still
+  receives exactly the caller's origin/destination, and the carrier is never returned or written
+  to graph state. Other four tools serialize the actual `TripRequirements`.
+- Lifecycle and readiness: direct remains the default and does not create an MCP client or STDIO
+  process. MCP mode discovers once before graph compilation, then reuses its registry. Discovery
+  failure does not block FastAPI startup and never silently falls back to direct. Readiness uses
+  cached discovery, a loopback socket check, and a one-second refresh cooldown. Current
+  `MultiServerMCPClient` exposes no public `aclose()`; its documented stateless tool sessions
+  create and clean up their own connections, so no private close attribute is called.
+- Security and limits: The HTTP Server binds only 127.0.0.1, sends no Authorization header, and is
+  unauthenticated local-development functionality. Fixed STDIO command/args use `sys.executable`,
+  a fixed module, fixed project cwd, and a minimal safe environment without Token, password, or
+  DSN forwarding. Diagnostics omit command, URL, PID, environment, tool/client repr, traceback,
+  and secrets. All outputs remain invented deterministic mock data; no quality, speed, QPS, or
+  production-readiness improvement is claimed.
+- Actual verification: `uv sync` resolved 179 packages and checked 148 installed packages. The
+  explicit smoke discovered two STDIO and three Streamable HTTP tools and successfully called all
+  five. MCP-mode status reported both Servers ready and five unique tools; `/health` and `/ready`
+  returned 200. A persistent Shanghai-to-Tokyo request and same-thread Tokyo-to-Paris request both
+  returned 200 with five successful search kinds, P10 parent context, one P09 review round, and the
+  explicitly remembered preference; the final state was `mcp`, Paris, five results, and one review
+  history entry. After HTTP MCP stopped, readiness returned 503, health remained 200, Agent returned
+  a sanitized `critical_search_failed` 503, and checkpoint state kept two successful STDIO results
+  plus three HTTP errors. Restarting HTTP MCP restored discovery/readiness and the same failed
+  thread reset to five results and zero errors. A new FastAPI process restored the Paris state and
+  preference from PostgreSQL. With the MCP Server stopped, default direct mode still returned
+  readiness 200 and a complete five-result reviewed plan without starting STDIO. Three acceptance
+  threads and one acceptance preference were deleted by exact test identifier; no volume was
+  removed. Final Ruff lint/format and mypy passed, ordinary pytest passed 302 tests with seven
+  explicit integration skips, the isolated P11 integration passed one test, and all integrations
+  passed seven tests. The sole suite warning remains the pre-existing Starlette TestClient/httpx
+  deprecation warning.

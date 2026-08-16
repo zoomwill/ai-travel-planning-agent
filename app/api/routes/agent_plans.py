@@ -30,6 +30,7 @@ async def create_agent_plan(request: Request, requirements: TripRequirements) ->
             f"Preferences: {preferences}."
         ),
         "requirements": requirements,
+        "search_backend_mode": request.app.state.settings.travel_search_backend_mode,
         "next_agent": None,
         "remembered_preferences": [],
         "retrieved_context": [],
@@ -84,11 +85,17 @@ async def create_agent_plan(request: Request, requirements: TripRequirements) ->
         ) from exc
 
     travel_plan = final_state.get("travel_plan")
-    if final_state.get("error") is not None:
+    graph_error = final_state.get("error")
+    if graph_error is not None:
+        error_code = (
+            "critical_search_failed"
+            if graph_error.startswith("critical_search_failed:")
+            else graph_error
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
-                "code": final_state["error"],
+                "code": error_code,
                 "message": "The agent planning runtime ended with a safe error.",
             },
         )

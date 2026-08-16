@@ -20,6 +20,7 @@ class InfrastructureReadiness(BaseModel):
     postgresql: ServiceReadiness
     redis: ServiceReadiness
     chroma: ServiceReadiness
+    mcp: ServiceReadiness | None = None
 
 
 class ReadinessResponse(BaseModel):

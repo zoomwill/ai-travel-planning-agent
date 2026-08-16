@@ -37,11 +37,20 @@ def create_lifespan(
         )
         app.state.travel_planning_graph = travel_graph or build_travel_planning_graph(
             advanced_retriever=advanced_retriever,
+            search_backend=resources.search_backend,
             review_score_threshold=settings.review_score_threshold,
             review_max_rounds=settings.review_max_rounds,
         )
         try:
-            async with persistence_factory(settings, advanced_retriever) as persistence:
+            if resources.search_backend is None:
+                persistence_context = persistence_factory(settings, advanced_retriever)
+            else:
+                persistence_context = persistence_factory(
+                    settings,
+                    advanced_retriever,
+                    resources.search_backend,
+                )
+            async with persistence_context as persistence:
                 app.state.persistence = persistence
                 try:
                     yield

@@ -32,6 +32,7 @@ class TravelPlanState(TypedDict, total=False):
 
     user_request: str
     requirements: TripRequirements
+    search_backend_mode: Literal["direct", "mcp"]
     next_agent: Literal["planner"] | None
     remembered_preferences: list[str]
     retrieved_context: Annotated[list[str], replace_state_value]

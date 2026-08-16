@@ -1,8 +1,9 @@
 """Application-owned LangGraph checkpoint and preference-store resources."""
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
+from typing import Protocol
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -13,6 +14,7 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from app.core.config import Settings
 from app.graphs.graph import TravelPlanningGraph, build_travel_planning_graph
 from app.rag.advanced_retriever import AdvancedRetriever
+from app.search.backend import SearchBackend
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,10 +26,16 @@ class PersistenceResources:
     graph: TravelPlanningGraph
 
 
-PersistenceFactory = Callable[
-    [Settings, AdvancedRetriever | None],
-    AbstractAsyncContextManager[PersistenceResources],
-]
+class PersistenceFactory(Protocol):
+    """Create persistence while allowing the P11 backend argument to stay optional."""
+
+    def __call__(
+        self,
+        settings: Settings,
+        advanced_retriever: AdvancedRetriever | None = None,
+        search_backend: SearchBackend | None = None,
+    ) -> AbstractAsyncContextManager[PersistenceResources]:
+        """Return an application-owned persistence context manager."""
 
 
 def create_strict_serializer() -> JsonPlusSerializer:
@@ -43,6 +51,7 @@ def create_strict_serializer() -> JsonPlusSerializer:
 async def create_postgres_persistence_resources(
     settings: Settings,
     advanced_retriever: AdvancedRetriever | None = None,
+    search_backend: SearchBackend | None = None,
 ) -> AsyncIterator[PersistenceResources]:
     """Open exactly one saver and store connection for one application lifespan."""
 
@@ -57,6 +66,7 @@ async def create_postgres_persistence_resources(
         store = await stack.enter_async_context(AsyncPostgresStore.from_conn_string(connection_uri))
         graph = build_travel_planning_graph(
             advanced_retriever=advanced_retriever,
+            search_backend=search_backend,
             review_score_threshold=settings.review_score_threshold,
             review_max_rounds=settings.review_max_rounds,
             checkpointer=checkpointer,

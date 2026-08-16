@@ -99,6 +99,7 @@ def _make_initial_state(payload: ThreadPlanRequest) -> TravelPlanState:
             f"to {payload.requirements.destination}. Preferences: {preferences}."
         ),
         "requirements": payload.requirements,
+        "search_backend_mode": "direct",
         "next_agent": None,
         "remembered_preferences": [],
         "retrieved_context": [],
@@ -158,13 +159,15 @@ async def create_thread_plan(
     validated_thread_id = _validate_thread_id(thread_id)
     validated_user_id = _validate_user_id(payload.user_id)
     persistence = _get_persistence(request)
+    initial_state = _make_initial_state(payload)
+    initial_state["search_backend_mode"] = request.app.state.settings.travel_search_backend_mode
     context = TravelRuntimeContext(
         user_id=validated_user_id,
         preferences_to_remember=tuple(payload.remember_preferences),
     )
     try:
         result = await persistence.graph.ainvoke(
-            _make_initial_state(payload),
+            initial_state,
             config=_thread_config(
                 validated_thread_id,
                 recursion_limit=request.app.state.settings.graph_recursion_limit,
@@ -226,6 +229,7 @@ async def create_thread_plan(
     return ThreadPlanResponse(
         thread_id=validated_thread_id,
         user_id=validated_user_id,
+        search_backend_mode=final_state.get("search_backend_mode", "direct"),
         travel_plan=travel_plan,
         remembered_preferences=final_state.get("remembered_preferences", []),
         search_summary=final_state.get("search_summary", {}),
@@ -274,6 +278,7 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
     return ThreadStateResponse(
         thread_id=validated_thread_id,
         status=cast(Any, _state_status(values, snapshot.next)),
+        search_backend_mode=values.get("search_backend_mode", "direct"),
         user_request=values.get("user_request"),
         next_agent=values.get("next_agent"),
         remembered_preferences=values.get("remembered_preferences", []),

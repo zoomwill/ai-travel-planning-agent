@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.routes.agent_plans import router as agent_plans_router
 from app.api.routes.health import router as health_router
+from app.api.routes.mcp import router as mcp_router
 from app.api.routes.persistence import router as persistence_router
 from app.api.routes.plans import router as plans_router
 from app.api.routes.rag import router as rag_router
@@ -46,6 +47,7 @@ def create_app(
     application.state.travel_planning_graph = resolved_travel_graph
     application.include_router(agent_plans_router)
     application.include_router(health_router)
+    application.include_router(mcp_router)
     application.include_router(readiness_router)
     application.include_router(plans_router)
     application.include_router(persistence_router)

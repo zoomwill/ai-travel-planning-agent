@@ -31,6 +31,7 @@ class ThreadPlanResponse(BaseModel):
 
     thread_id: str
     user_id: str
+    search_backend_mode: Literal["direct", "mcp"] = "direct"
     travel_plan: TravelPlan
     remembered_preferences: list[str]
     search_summary: SearchSummary = Field(default_factory=dict)
@@ -51,6 +52,7 @@ class ThreadStateResponse(BaseModel):
 
     thread_id: str
     status: Literal["empty", "running", "complete", "error"]
+    search_backend_mode: Literal["direct", "mcp"] = "direct"
     user_request: str | None = None
     next_agent: str | None = None
     remembered_preferences: list[str] = Field(default_factory=list)

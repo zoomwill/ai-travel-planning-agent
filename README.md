@@ -132,3 +132,34 @@ Local diagnostic endpoints are `GET /api/v1/rag/status` and `POST /api/v1/rag/se
 no authentication and are suitable only for local development. The 12 Markdown files are static,
 original demo fixtures—not official or live travel data. Always verify current prices, opening
 hours, transport notices, weather, accessibility, and availability from an authoritative source.
+
+## Local MCP travel tools
+
+Phase P11 adds a local MCP tool boundary around the same P03 mock providers. It has one STDIO
+Server for weather/route and one independent Streamable HTTP Server for flights/hotels/attractions.
+The default remains `direct`; no real travel API or LLM tool selection is added. Read the beginner
+guide in [`docs/18_MCP_TOOL_LAYER.md`](docs/18_MCP_TOOL_LAYER.md).
+
+To try MCP locally, keep the HTTP Server in its own terminal:
+
+```bash
+uv run python -m app.mcp_tools.servers.travel_http
+```
+
+Then discover and call all five tools:
+
+```bash
+uv run python scripts/check_mcp_tools.py
+```
+
+Start FastAPI in explicit MCP mode only after the HTTP Server is ready:
+
+```bash
+TRAVEL_SEARCH_BACKEND_MODE=mcp \
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Inspect `http://127.0.0.1:8000/api/v1/mcp/status` and
+`http://127.0.0.1:8000/ready`. The local MCP HTTP endpoint and diagnostics endpoint have no
+authentication and must not be exposed publicly. Stop both terminal processes with Control+C;
+the STDIO Server is started and stopped automatically by the client.
