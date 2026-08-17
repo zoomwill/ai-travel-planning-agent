@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     review_score_threshold: float = Field(default=80.0, ge=0, le=100)
     review_max_rounds: int = Field(default=3, ge=1)
     graph_recursion_limit: int = Field(default=50, ge=1)
+    sse_heartbeat_seconds: float = Field(default=10.0, gt=0, le=14.0)
+    sse_queue_maxsize: int = Field(default=64, ge=1, le=1024)
 
     rag_pipeline_version: str = Field(default="advanced-v1", min_length=1, max_length=64)
     rag_child_collection: str = Field(

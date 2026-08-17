@@ -163,3 +163,37 @@ Inspect `http://127.0.0.1:8000/api/v1/mcp/status` and
 `http://127.0.0.1:8000/ready`. The local MCP HTTP endpoint and diagnostics endpoint have no
 authentication and must not be exposed publicly. Stop both terminal processes with Control+C;
 the STDIO Server is started and stopped automatically by the client.
+
+## Persistent plan progress streaming
+
+Phase P12 projects one existing persistent LangGraph run into Server-Sent Events (SSE). It does
+not run the graph a second time and it does not add an LLM or token streaming. Read the beginner
+guide in [`docs/19_SSE_STREAMING.md`](docs/19_SSE_STREAMING.md).
+
+Start Docker and FastAPI as described above, then run this POST request in another terminal:
+
+```bash
+curl --noproxy '*' -N \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "user_id": "local-stream-user",
+    "requirements": {
+      "origin": "Shanghai",
+      "destination": "Tokyo",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-03",
+      "budget": "10000.00",
+      "currency": "CNY",
+      "travelers": 1,
+      "preferences": ["photography", "quiet neighborhoods"]
+    },
+    "remember_preferences": ["Quiet neighborhoods"]
+  }' \
+  'http://127.0.0.1:8000/api/v1/agents/threads/local-stream-thread/plans/stream'
+```
+
+The first business event is `run_started`. Progress includes safe node, retrieval, five-way
+search, and review events. A complete successful stream ends with exactly one `plan_completed`;
+an in-stream failure ends with exactly one `error`. Keepalive lines such as `: ping` are transport
+comments and do not consume a business event ID.

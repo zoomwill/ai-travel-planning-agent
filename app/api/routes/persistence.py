@@ -1,9 +1,13 @@
 """HTTP boundaries for durable graph threads and explicit user memory."""
 
+import asyncio
 import re
-from typing import Any, NoReturn, cast
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Annotated, Any, NoReturn, cast
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from langchain_core.runnables import RunnableConfig
 from langgraph.errors import GraphRecursionError
 from langgraph.types import StateSnapshot
@@ -22,11 +26,20 @@ from app.schemas.persistence import (
     ThreadPlanResponse,
     ThreadStateResponse,
 )
+from app.streaming.models import StreamHeartbeat
+from app.streaming.service import TravelPlanStream
 
 router = APIRouter(tags=["persistence"])
 
 _THREAD_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _USER_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedPlanStream:
+    """Validated dependencies ready before FastAPI commits SSE headers."""
+
+    stream: TravelPlanStream
 
 
 def _raise_api_error(http_status: int, code: str, message: str) -> NoReturn:
@@ -143,6 +156,80 @@ def _snapshot_checkpoint_id(snapshot: StateSnapshot) -> str:
     configurable = snapshot.config.get("configurable", {})
     checkpoint_id = configurable.get("checkpoint_id", "")
     return str(checkpoint_id)
+
+
+async def _prepare_plan_stream(
+    thread_id: str,
+    payload: ThreadPlanRequest,
+    request: Request,
+) -> _PreparedPlanStream:
+    """Validate the complete persistent request before opening an SSE response."""
+
+    validated_thread_id = _validate_thread_id(thread_id)
+    validated_user_id = _validate_user_id(payload.user_id)
+    persistence = _get_persistence(request)
+    settings = request.app.state.settings
+    backend_mode = settings.travel_search_backend_mode
+    if backend_mode == "mcp":
+        try:
+            resources = request.app.state.resources
+            runtime = resources.mcp_runtime
+            ready = runtime is not None and await asyncio.wait_for(
+                runtime.is_ready(),
+                timeout=settings.mcp_discovery_timeout_seconds,
+            )
+        except Exception:
+            ready = False
+        if not ready:
+            _raise_api_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "stream_backend_unavailable",
+                "The configured MCP travel-search backend is not ready.",
+            )
+
+    initial_state = _make_initial_state(payload)
+    initial_state["search_backend_mode"] = backend_mode
+    context = TravelRuntimeContext(
+        user_id=validated_user_id,
+        preferences_to_remember=tuple(payload.remember_preferences),
+    )
+    return _PreparedPlanStream(
+        stream=TravelPlanStream(
+            graph=persistence.graph,
+            initial_state=initial_state,
+            config=_thread_config(
+                validated_thread_id,
+                recursion_limit=settings.graph_recursion_limit,
+            ),
+            context=context,
+            thread_id=validated_thread_id,
+            backend_mode=backend_mode,
+            heartbeat_seconds=settings.sse_heartbeat_seconds,
+            queue_maxsize=settings.sse_queue_maxsize,
+        )
+    )
+
+
+@router.post(
+    "/api/v1/agents/threads/{thread_id}/plans/stream",
+    response_class=EventSourceResponse,
+    responses={503: {"description": "Persistence or configured search backend unavailable"}},
+)
+async def stream_thread_plan(
+    prepared: Annotated[_PreparedPlanStream, Depends(_prepare_plan_stream)],
+) -> AsyncIterator[ServerSentEvent]:
+    """Stream one persistent graph execution as typed SSE business events."""
+
+    async for item in prepared.stream.stream():
+        if isinstance(item, StreamHeartbeat):
+            yield ServerSentEvent(comment=item.comment)
+            continue
+        event = item
+        yield ServerSentEvent(
+            id=str(event.event_id),
+            event=event.event_type.value,
+            data=event.model_dump(mode="json"),
+        )
 
 
 @router.post(

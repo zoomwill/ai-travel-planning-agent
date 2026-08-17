@@ -495,3 +495,82 @@ Record deviations from source pseudocode and important engineering decisions her
   explicit integration skips, the isolated P11 integration passed one test, and all integrations
   passed seven tests. The sole suite warning remains the pre-existing Starlette TestClient/httpx
   deprecation warning.
+
+### 2026-08-17 — Phase P12 SSE progress streaming
+
+- Source intent: Safely project the existing persistent LangGraph progress and final TravelPlan
+  into one cancellable SSE response. P12 does not add token streaming, an LLM, a frontend,
+  observability, authentication, replay, a business lock, or a second graph execution.
+- Resolved versions and Graph API: Local imports reported Python 3.12.13, FastAPI 0.141.1,
+  Starlette 1.4.1, LangGraph 1.2.10, langchain-core 1.5.3, and Pydantic 2.13.4. The public compiled
+  graph signature supports `stream_mode=["tasks", "updates"]` and `version="v2"`. A real in-memory
+  graph probe produced v2 envelopes shaped as `{"type": "tasks"|"updates", "data": ...}`. Task
+  starts had `id/input/name/triggers`; finishes had `id/name/result/error/interrupts`; updates were
+  `{node_name: node_update}`. The probe observed five search-worker starts and five finishes in the
+  same graph execution.
+- FastAPI SSE choice: Use current native `EventSourceResponse` and `ServerSentEvent`, so FastAPI
+  owns standards-compliant `id`, `event`, JSON `data`, comment framing, `text/event-stream`,
+  `Cache-Control: no-cache`, `X-Accel-Buffering: no`, and its request-scoped structured teardown.
+  Its current wire encoder writes the legal field order `event`, `data`, then `id`; SSE parsers
+  treat fields by name, so this is behaviorally equivalent to the source example's `id`, `event`,
+  then `data`. P12 does not replace the supported encoder merely to rearrange semantically
+  unordered lines.
+  FastAPI 0.141.1 has a fixed internal 15-second keepalive and no public ping-interval argument.
+  Rather than patch its private constant, P12 uses a validated 10-second application comment
+  heartbeat (configurable up to 14 seconds); FastAPI's native ping remains a later fallback.
+- Backpressure and cancellation: An application-owned bounded `asyncio.Queue` defaults to 64.
+  Business puts await capacity and are never dropped. FastAPI adds its native capacity-1 transport
+  buffer. Disconnect cancellation reaches the response generator; its `finally` cancels and
+  awaits the graph producer. The producer closes the one `astream` async generator. Expected
+  `CancelledError` is suppressed only while awaiting cancellation cleanup, and client disconnect
+  does not create a terminal business event. The private completion sentinel uses non-blocking
+  insertion: if a disconnected consumer left the bounded queue full, cleanup cannot deadlock on a
+  second awaited put. Connected success and failure paths exit from their terminal business event.
+- Safe mapping: `tasks` owns allowlisted node start/finish and five search lifecycles. `updates`
+  owns only retrieval, review, revision, and validated final-plan facts. Unknown nodes and all raw
+  task input/result/config/state are ignored. Search output contains only kind/status/count or a
+  stable safe error. Retrieval output excludes context, IDs, cache keys, embeddings, corpus/model
+  details, candidates, and scores. Reviewer facts come from validated `PlanReview`; the final plan
+  comes from `TravelPlan.model_validate()`.
+- Terminal and persistence semantics: A per-connection sequencer starts at one and assigns both ID
+  and sequence with an aware UTC timestamp. A terminal guard allows exactly one
+  `plan_completed` or `error`. Normal final output comes from the one stream's `finalize_plan`
+  update. Only when that is absent and no error was observed may `aget_state()` read the same
+  thread's saved checkpoint. A fallback plan must exactly match the current request requirements,
+  so a reused thread cannot return an older destination's plan. Streaming code contains no
+  `ainvoke()` fallback. The old non-stream endpoint retains its original single `ainvoke()`
+  behavior.
+- Automated verification: P12 models, mapper, service, cancellation, HTTP comment heartbeat,
+  real in-memory graph API, SSE framing, state/history, preference memory, natural revision, safe
+  failure, full-queue cleanup, same-thread Tokyo-to-Paris replacement, and checkpoint-fallback
+  tests passed 30 focused tests; the two P12 integration tests
+  were explicitly skipped without `RUN_INTEGRATION_TESTS=1`. Ruff lint and format passed, and
+  mypy found no issues in 108 application files. The complete ordinary suite passed 332 tests
+  with nine explicit integration skips. The isolated P12 integration passed two tests against
+  real PostgreSQL/Redis/Chroma and dynamic-port STDIO/HTTP MCP, including durable same-thread
+  Tokyo-to-Paris replacement. The only warning remained the existing Starlette TestClient/httpx
+  deprecation warning.
+- Live direct acceptance: Compose started the existing three containers without deleting volumes;
+  PostgreSQL accepted connections, Redis returned PONG, Chroma returned HTTP 200 ready, and saver
+  and store setup passed. A real curl direct stream produced 32 monotonic business events with
+  all five search kinds, retrieval, review, and exactly one validated Tokyo `plan_completed`.
+  Its saved state was complete with five search results, one accepted review, four query variants,
+  four parents, 12 inspected history items, and one explicit preference. The existing advanced
+  index remained ready with 36 parents and 77 children. A separate natural five-day 1,000 CNY
+  request produced review score 78.97/revise, `revision_started`, then 80.26/accept and successful
+  finalization. These deterministic fixture scores are observations, not a quality benchmark.
+- Live cancellation and MCP acceptance: Curl disconnected after 55 milliseconds with six partial
+  business events; it had `run_started` but no `error` or `plan_completed`, and Uvicorn logged no
+  unhandled/pending/unclosed task or session warning. Real MCP smoke discovered and called all five
+  tools. MCP-mode readiness was ready with five tools; its curl stream produced 32 business events,
+  all five search kinds, one validated terminal plan, and a complete five-result checkpoint with
+  no MCP object names. Stopping the HTTP MCP Server made a new stream return safe JSON HTTP 503
+  `stream_backend_unavailable` before `run_started`, with no direct fallback or transport detail.
+  Both Uvicorn processes and the MCP Server shut down cleanly; ports 8000 and 9001 and the filtered
+  project server process list were empty afterward.
+- Acceptance cleanup and caveat: Five actual `p12-manual-*` checkpoints and one exact manual
+  preference were removed and verified absent; the outage request had created no checkpoint. No
+  table, collection, cache, container, or named volume was deleted. A one-off low-level saver
+  existence probe printed strict serializer blocked-deserialization notices for Currency,
+  TravelPlan, and TripRequirements; the normal API restart path and integration test restored
+  typed state successfully. This diagnostic caveat does not change the strict no-pickle policy.
