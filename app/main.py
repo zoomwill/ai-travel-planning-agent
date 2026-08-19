@@ -1,6 +1,9 @@
 """FastAPI application entry point."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from starlette.types import ASGIApp
 
 from app.api.routes.agent_plans import router as agent_plans_router
 from app.api.routes.health import router as health_router
@@ -17,6 +20,23 @@ from app.core.persistence import (
 )
 from app.core.resources import ResourceFactory, create_app_resources
 from app.graphs.graph import TravelPlanningGraph, build_travel_planning_graph
+from app.observability.logging import log_event
+from app.observability.metrics import MetricsRuntime
+from app.observability.middleware import ObservabilityMiddleware
+
+
+class ObservedFastAPI(FastAPI):
+    """Place observability outside FastAPI's final safe error-response layer."""
+
+    _observability_metrics: MetricsRuntime
+
+    def build_middleware_stack(self) -> ASGIApp:
+        """Observe completed 500 responses while preserving exception re-raise."""
+
+        return ObservabilityMiddleware(
+            super().build_middleware_stack(),
+            metrics=self._observability_metrics,
+        )
 
 
 def create_app(
@@ -29,11 +49,14 @@ def create_app(
     """Create a FastAPI application with injectable lifespan resources."""
 
     resolved_settings = settings or get_settings()
+    metrics = MetricsRuntime.create()
     resolved_travel_graph = travel_graph or build_travel_planning_graph(
         review_score_threshold=resolved_settings.review_score_threshold,
         review_max_rounds=resolved_settings.review_max_rounds,
+        metrics=metrics,
+        backend_mode=resolved_settings.travel_search_backend_mode,
     )
-    application = FastAPI(
+    application = ObservedFastAPI(
         title="AI Intelligent Travel Planning System",
         version="0.1.0",
         lifespan=create_lifespan(
@@ -41,10 +64,44 @@ def create_app(
             resource_factory,
             persistence_factory,
             travel_graph,
+            metrics,
         ),
     )
+    application._observability_metrics = metrics
     application.state.settings = resolved_settings
+    application.state.metrics = metrics
     application.state.travel_planning_graph = resolved_travel_graph
+
+    @application.get("/metrics", include_in_schema=False)
+    async def prometheus_metrics() -> Response:
+        """Expose this process's in-memory registry without probing dependencies."""
+
+        return Response(
+            content=generate_latest(metrics.registry),
+            headers={"Content-Type": CONTENT_TYPE_LATEST},
+        )
+
+    @application.exception_handler(Exception)
+    async def unhandled_exception_handler(_: Request, __: Exception) -> JSONResponse:
+        """Return a stable 500 body while the middleware records and re-raises failures."""
+
+        log_event(
+            "unhandled_http_error",
+            "An unhandled HTTP error was converted to a safe response.",
+            component="http",
+            error_code="internal_server_error",
+            outcome="error",
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": {
+                    "code": "internal_server_error",
+                    "message": "The server could not complete the request.",
+                }
+            },
+        )
+
     application.include_router(agent_plans_router)
     application.include_router(health_router)
     application.include_router(mcp_router)

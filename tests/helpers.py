@@ -21,6 +21,7 @@ from app.core.resources import AppResources
 from app.graphs.graph import build_travel_planning_graph
 from app.graphs.nodes.retriever import ContextRetriever
 from app.infrastructure.chroma import ChromaClientProvider
+from app.observability.metrics import MetricsRuntime
 from app.rag.advanced_retriever import AdvancedRetriever
 from app.review.reviewer import PlanReviewer
 from app.search.backend import SearchBackend
@@ -139,6 +140,8 @@ def make_in_memory_persistence_factory(
         settings: Settings,
         advanced_retriever: AdvancedRetriever | None = None,
         configured_search_backend: SearchBackend | None = None,
+        metrics: MetricsRuntime | None = None,
+        backend_mode: str = "direct",
     ) -> AsyncIterator[PersistenceResources]:
         checkpointer = InMemorySaver(serde=create_strict_serializer())
         store = InMemoryStore()
@@ -151,6 +154,8 @@ def make_in_memory_persistence_factory(
             review_max_rounds=settings.review_max_rounds,
             checkpointer=checkpointer,
             store=store,
+            metrics=metrics,
+            backend_mode=backend_mode,
         )
         yield PersistenceResources(
             checkpointer=checkpointer,

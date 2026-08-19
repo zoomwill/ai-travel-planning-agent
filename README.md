@@ -197,3 +197,33 @@ The first business event is `run_started`. Progress includes safe node, retrieva
 search, and review events. A complete successful stream ends with exactly one `plan_completed`;
 an in-stream failure ends with exactly one `error`. Keepalive lines such as `: ping` are transport
 comments and do not consume a business event ID.
+
+## Local observability
+
+Phase P13 adds safe one-line JSON logs, `X-Request-ID`, an explicit Prometheus endpoint, and an
+optional Prometheus/Grafana Docker profile. Read [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md)
+before using it. Start FastAPI without the duplicate Uvicorn access log, then start the optional
+profile:
+
+```bash
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+docker compose --profile observability up -d --wait --wait-timeout 180
+uv run python scripts/check_observability.py
+```
+
+Open `http://127.0.0.1:9090` for Prometheus and `http://127.0.0.1:3000` for the provisioned
+“Travel Planner Observability Overview” dashboard. Both ports bind only to loopback. Grafana's
+anonymous account is a local Viewer, not an Editor or Admin; this configuration has no TLS or
+authentication and must never be exposed to a public network.
+
+Useful commands:
+
+```bash
+curl --noproxy '*' http://127.0.0.1:8000/metrics
+docker compose --profile observability ps
+docker compose --profile observability logs prometheus grafana
+docker compose --profile observability stop prometheus grafana
+```
+
+The final command stops only the two observability containers and preserves all five named
+volumes. Do not use `docker compose down -v` unless you deliberately intend to destroy local data.

@@ -9,6 +9,7 @@ from app.domain.models import TravelPlan, TripRequirements
 from app.graphs.context import TravelRuntimeContext
 from app.graphs.graph import TravelPlanningGraph
 from app.graphs.state import TravelPlanState
+from app.observability.instrumentation import invoke_graph_once
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
@@ -59,12 +60,16 @@ async def create_agent_plan(request: Request, requirements: TripRequirements) ->
         graph = cast(TravelPlanningGraph, request.app.state.travel_planning_graph)
         final_state = cast(
             TravelPlanState,
-            await graph.ainvoke(
-                initial_state,
-                config={
-                    "recursion_limit": request.app.state.settings.graph_recursion_limit,
-                },
-                context=TravelRuntimeContext(user_id="anonymous"),
+            await invoke_graph_once(
+                lambda: graph.ainvoke(
+                    initial_state,
+                    config={
+                        "recursion_limit": request.app.state.settings.graph_recursion_limit,
+                    },
+                    context=TravelRuntimeContext(user_id="anonymous"),
+                ),
+                metrics=request.app.state.metrics,
+                backend=request.app.state.settings.travel_search_backend_mode,
             ),
         )
     except GraphRecursionError as exc:

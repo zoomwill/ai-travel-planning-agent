@@ -1,6 +1,7 @@
 """Single-execution LangGraph producer, heartbeat, and cancellation service."""
 
 import asyncio
+import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import aclosing, suppress
 from datetime import UTC, datetime
@@ -13,6 +14,13 @@ from app.domain.models import TravelPlan
 from app.graphs.context import TravelRuntimeContext
 from app.graphs.graph import TravelPlanningGraph
 from app.graphs.state import TravelPlanState
+from app.observability.instrumentation import GraphRunTracker
+from app.observability.metrics import (
+    SSE_EVENT_TYPES,
+    SSE_TERMINAL_STATUSES,
+    MetricsRuntime,
+    normalize_label,
+)
 from app.search.models import JsonObject
 from app.streaming.mapper import LangGraphEventMapper
 from app.streaming.models import (
@@ -68,6 +76,7 @@ class TravelPlanStream:
         heartbeat_seconds: float,
         queue_maxsize: int,
         clock: Callable[[], datetime] | None = None,
+        metrics: MetricsRuntime | None = None,
     ) -> None:
         self._graph = graph
         self._initial_state = initial_state
@@ -78,29 +87,34 @@ class TravelPlanStream:
         self._heartbeat_seconds = heartbeat_seconds
         self._queue_maxsize = queue_maxsize
         self._sequencer = EventSequencer(thread_id, clock=clock)
+        self._metrics = metrics
 
     async def stream(self) -> AsyncGenerator[StreamBusinessEvent | StreamHeartbeat, None]:
         """Yield progress and cleanly cancel/await the graph producer on disconnect."""
 
+        started = time.monotonic()
+        terminal_status = "disconnect"
+        if self._metrics is not None:
+            self._metrics.sse_active.inc()
         queue: asyncio.Queue[StreamBusinessEvent | object] = asyncio.Queue(
             maxsize=self._queue_maxsize
         )
-        run_started = self._sequencer.next(
-            StreamEventDraft(
-                event_type=StreamEventType.RUN_STARTED,
-                node="agent_runtime",
-                status=StreamEventStatus.STARTED,
-                message="Persistent travel planning started.",
-                data={"backend_mode": self._backend_mode, "persistent": True},
-            )
-        )
-        yield run_started
-
         producer = asyncio.create_task(
             self._produce(queue),
             name=f"travel-plan-stream-{self._thread_id}",
         )
         try:
+            run_started = self._sequencer.next(
+                StreamEventDraft(
+                    event_type=StreamEventType.RUN_STARTED,
+                    node="agent_runtime",
+                    status=StreamEventStatus.STARTED,
+                    message="Persistent travel planning started.",
+                    data={"backend_mode": self._backend_mode, "persistent": True},
+                )
+            )
+            self._record_event(run_started)
+            yield run_started
             while True:
                 try:
                     async with asyncio.timeout(self._heartbeat_seconds):
@@ -111,18 +125,39 @@ class TravelPlanStream:
                 if item is _PRODUCER_DONE:
                     break
                 event = cast(StreamBusinessEvent, item)
+                self._record_event(event)
                 yield event
                 if event.event_type in _TERMINAL_EVENTS:
+                    terminal_status = (
+                        "success" if event.event_type is StreamEventType.PLAN_COMPLETED else "error"
+                    )
                     break
+        except asyncio.CancelledError:
+            terminal_status = "cancelled"
+            raise
         finally:
             if not producer.done():
                 producer.cancel()
             with suppress(asyncio.CancelledError):
                 await producer
+            if self._metrics is not None:
+                normalized = normalize_label(terminal_status, SSE_TERMINAL_STATUSES)
+                self._metrics.sse_active.dec()
+                self._metrics.sse_connections.labels(terminal_status=normalized).inc()
+                self._metrics.sse_duration.labels(terminal_status=normalized).observe(
+                    max(0.0, time.monotonic() - started)
+                )
+                if normalized == "disconnect":
+                    self._metrics.sse_disconnects.inc()
 
     async def _produce(self, queue: asyncio.Queue[StreamBusinessEvent | object]) -> None:
         mapper = LangGraphEventMapper()
         terminal_sent = False
+        graph_tracker = (
+            GraphRunTracker(self._metrics, self._backend_mode)
+            if self._metrics is not None
+            else None
+        )
         try:
             raw_stream = cast(
                 AsyncGenerator[dict[str, Any], None],
@@ -147,23 +182,40 @@ class TravelPlanStream:
                 or mapper.final_plan is None
                 or not self._plan_matches_request(mapper.final_plan)
             ):
+                if graph_tracker is not None:
+                    graph_tracker.finish("error")
                 await queue.put(self._error_event(mapper.state_error))
             else:
+                if graph_tracker is not None:
+                    graph_tracker.finish("success")
                 await queue.put(self._plan_event(mapper))
             terminal_sent = True
         except asyncio.CancelledError:
+            if graph_tracker is not None:
+                graph_tracker.finish("cancelled")
             raise
         except GraphRecursionError:
+            if graph_tracker is not None:
+                graph_tracker.finish("error")
             if not terminal_sent:
                 await queue.put(
                     self._error_event("graph_recursion_limit_reached", recoverable=False)
                 )
         except Exception:
+            if graph_tracker is not None:
+                graph_tracker.finish("error")
             if not terminal_sent:
                 await queue.put(self._error_event("stream_graph_failed"))
         finally:
             with suppress(asyncio.QueueFull):
                 queue.put_nowait(_PRODUCER_DONE)
+
+    def _record_event(self, event: StreamBusinessEvent) -> None:
+        """Count only public business events, never heartbeat comments."""
+
+        if self._metrics is not None:
+            event_type = normalize_label(event.event_type.value, SSE_EVENT_TYPES)
+            self._metrics.sse_events.labels(event_type=event_type).inc()
 
     def _plan_matches_request(self, plan: TravelPlan) -> bool:
         """Reject a checkpoint plan that belongs to an older thread request."""

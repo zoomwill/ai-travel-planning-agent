@@ -23,6 +23,12 @@ from app.graphs.nodes.retriever import ContextRetriever, advanced_retriever_node
 from app.graphs.nodes.reviewer import reviewer_node, route_after_review
 from app.graphs.nodes.search_worker import search_worker_node
 from app.graphs.state import TravelPlanState
+from app.observability.instrumentation import (
+    InstrumentedSearchBackend,
+    instrument_node,
+    record_finalization,
+)
+from app.observability.metrics import MetricsRuntime
 from app.rag.advanced_retriever import AdvancedRetriever
 from app.rag.retriever import retrieve_travel_context
 from app.review.reviewer import DeterministicPlanReviewer, PlanReviewer
@@ -47,10 +53,14 @@ def build_travel_planning_graph(
     review_max_rounds: int = 3,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
     store: BaseStore | None = None,
+    metrics: MetricsRuntime | None = None,
+    backend_mode: str = "direct",
 ) -> TravelPlanningGraph:
     """Compile the deterministic graph with optional persistence dependencies."""
 
     backend = search_backend or DeterministicMockSearchBackend()
+    if metrics is not None:
+        backend = InstrumentedSearchBackend(backend, metrics, backend_mode)
     reviewer = plan_reviewer or DeterministicPlanReviewer()
 
     async def configured_retriever_node(state: TravelPlanState) -> dict[str, Any]:
@@ -79,21 +89,49 @@ def build_travel_planning_graph(
             max_review_rounds=review_max_rounds,
         )
 
+    def configured_finalize_plan_node(state: TravelPlanState) -> TravelPlanState:
+        """Record the actual bounded review outcome before final validation."""
+
+        result = finalize_plan_node(state)
+        if metrics is not None:
+            outcome = cast(dict[str, Any], {**state, **result})
+            if result.get("error") is not None:
+                outcome["review_status"] = "failed"
+            record_finalization(metrics, outcome)
+        return result
+
+    def observed(name: str, node: Any) -> Any:
+        """Apply the optional P13 wrapper without changing a node signature."""
+
+        return instrument_node(name, node, metrics) if metrics is not None else node
+
     builder = StateGraph(TravelPlanState, context_schema=TravelRuntimeContext)
-    builder.add_node("memory_context", memory_context_node)
-    builder.add_node("router", router_node)
-    builder.add_node("retriever", configured_retriever_node)
-    builder.add_node("prepare_search_tasks", prepare_search_tasks_node)
+    builder.add_node("memory_context", observed("memory_context", memory_context_node))
+    builder.add_node("router", observed("router", router_node))
+    builder.add_node("retriever", observed("retriever", configured_retriever_node))
+    builder.add_node(
+        "prepare_search_tasks",
+        observed("prepare_search_tasks", prepare_search_tasks_node),
+    )
     builder.add_node(
         "search_worker",
-        cast(Any, configured_search_worker_node),
+        cast(Any, observed("search_worker", configured_search_worker_node)),
         input_schema=SearchWorkerInput,
     )
-    builder.add_node("aggregate_search_results", aggregate_search_results_node)
-    builder.add_node("initialize_review_cycle", initialize_review_cycle_node)
-    builder.add_node("planner", planner_node)
-    builder.add_node("reviewer", configured_reviewer_node)
-    builder.add_node("finalize_plan", finalize_plan_node)
+    builder.add_node(
+        "aggregate_search_results",
+        observed("aggregate_search_results", aggregate_search_results_node),
+    )
+    builder.add_node(
+        "initialize_review_cycle",
+        observed("initialize_review_cycle", initialize_review_cycle_node),
+    )
+    builder.add_node("planner", observed("planner", planner_node))
+    builder.add_node("reviewer", observed("reviewer", configured_reviewer_node))
+    builder.add_node(
+        "finalize_plan",
+        observed("finalize_plan", configured_finalize_plan_node),
+    )
     builder.add_edge(START, "memory_context")
     builder.add_edge("memory_context", "router")
     builder.add_edge("router", "retriever")

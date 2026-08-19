@@ -18,6 +18,9 @@ from app.graphs.context import TravelRuntimeContext
 from app.graphs.state import TravelPlanState
 from app.memory.models import PreferenceMemory
 from app.memory.preferences import delete_user_preference, list_user_preferences
+from app.observability.context import pseudonymous_ref
+from app.observability.instrumentation import invoke_graph_once
+from app.observability.logging import log_event
 from app.review.models import PlanReview
 from app.schemas.persistence import (
     ThreadHistoryItem,
@@ -206,6 +209,7 @@ async def _prepare_plan_stream(
             backend_mode=backend_mode,
             heartbeat_seconds=settings.sse_heartbeat_seconds,
             queue_maxsize=settings.sse_queue_maxsize,
+            metrics=request.app.state.metrics,
         )
     )
 
@@ -253,13 +257,17 @@ async def create_thread_plan(
         preferences_to_remember=tuple(payload.remember_preferences),
     )
     try:
-        result = await persistence.graph.ainvoke(
-            initial_state,
-            config=_thread_config(
-                validated_thread_id,
-                recursion_limit=request.app.state.settings.graph_recursion_limit,
+        result = await invoke_graph_once(
+            lambda: persistence.graph.ainvoke(
+                initial_state,
+                config=_thread_config(
+                    validated_thread_id,
+                    recursion_limit=request.app.state.settings.graph_recursion_limit,
+                ),
+                context=context,
             ),
-            context=context,
+            metrics=request.app.state.metrics,
+            backend=request.app.state.settings.travel_search_backend_mode,
         )
     except GraphRecursionError:
         _raise_api_error(
@@ -275,6 +283,15 @@ async def create_thread_plan(
         )
 
     final_state = cast(TravelPlanState, result)
+    log_event(
+        "persistent_plan_completed",
+        "Persistent graph request completed.",
+        component="graph",
+        backend_mode=request.app.state.settings.travel_search_backend_mode,
+        thread_ref=pseudonymous_ref(validated_thread_id, kind="thread"),
+        user_ref=pseudonymous_ref(validated_user_id, kind="user"),
+        outcome="error" if final_state.get("error") else "success",
+    )
     error = final_state.get("error")
     if error in {"store_unavailable", "checkpoint_unavailable"}:
         _raise_api_error(

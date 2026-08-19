@@ -51,6 +51,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "integration: requires explicitly enabled local Docker infrastructure",
+    "observability: requires RUN_OBSERVABILITY_TESTS=1 and the local P13 stack",
 ]
 
 [build-system]

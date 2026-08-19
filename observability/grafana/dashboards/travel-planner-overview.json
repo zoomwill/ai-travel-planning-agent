@@ -1,0 +1,147 @@
+{
+  "id": null,
+  "uid": "travel-planner-overview",
+  "title": "Travel Planner Observability Overview",
+  "tags": ["travel-planner", "p13"],
+  "timezone": "browser",
+  "schemaVersion": 42,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-30m", "to": "now"},
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "1. HTTP request rate",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (method, route) (rate(travel_planner_http_requests_total[$__rate_interval]))", "legendFormat": "{{method}} {{route}}"}]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "2. HTTP error rate",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "sum(rate(travel_planner_http_requests_total{status_code=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(travel_planner_http_requests_total[$__rate_interval])), 1e-9)", "legendFormat": "5xx ratio"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "3. HTTP p50/p95/p99 latency",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [
+        {"refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(travel_planner_http_request_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "p50"},
+        {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(travel_planner_http_request_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "p95"},
+        {"refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(travel_planner_http_request_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "p99"}
+      ]
+    },
+    {
+      "id": 4, "type": "stat", "title": "4. HTTP in-progress requests",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(travel_planner_http_requests_in_progress)", "legendFormat": "active"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "5. Graph run rate",
+      "gridPos": {"x": 0, "y": 7, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (backend) (rate(travel_planner_graph_runs_total[$__rate_interval]))", "legendFormat": "{{backend}}"}]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "6. Graph success/error/cancelled",
+      "gridPos": {"x": 6, "y": 7, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (status) (rate(travel_planner_graph_runs_total[$__rate_interval]))", "legendFormat": "{{status}}"}]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "7. Graph p95 duration",
+      "gridPos": {"x": 12, "y": 7, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, backend) (rate(travel_planner_graph_run_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{backend}}"}]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "8. Node p95 duration",
+      "gridPos": {"x": 18, "y": 7, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, node) (rate(travel_planner_graph_node_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{node}}"}]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "9. Review rounds",
+      "gridPos": {"x": 0, "y": 14, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (final_status) (rate(travel_planner_review_rounds_sum[$__rate_interval])) / clamp_min(sum by (final_status) (rate(travel_planner_review_rounds_count[$__rate_interval])), 1e-9)", "legendFormat": "{{final_status}}"}]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "10. Finalization outcome",
+      "gridPos": {"x": 6, "y": 14, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (review_status, reason) (increase(travel_planner_plan_finalizations_total[$__rate_interval]))", "legendFormat": "{{review_status}} / {{reason}}"}]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "11. RAG cache hit/miss/unavailable",
+      "gridPos": {"x": 12, "y": 14, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (cache_status) (rate(travel_planner_rag_cache_events_total[$__rate_interval]))", "legendFormat": "{{cache_status}}"}]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "12. RAG latency",
+      "gridPos": {"x": 18, "y": 14, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, status) (rate(travel_planner_rag_search_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{status}}"}]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "13. Search task rate/status",
+      "gridPos": {"x": 0, "y": 21, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (kind, backend, status) (rate(travel_planner_search_tasks_total[$__rate_interval]))", "legendFormat": "{{kind}} {{backend}} {{status}}"}]
+    },
+    {
+      "id": 14, "type": "timeseries", "title": "14. Search task p95 latency",
+      "gridPos": {"x": 6, "y": 21, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, kind, backend) (rate(travel_planner_search_task_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{kind}} {{backend}}"}]
+    },
+    {
+      "id": 15, "type": "timeseries", "title": "15. MCP tool calls/status",
+      "gridPos": {"x": 12, "y": 21, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (tool, status) (rate(travel_planner_mcp_tool_calls_total[$__rate_interval]))", "legendFormat": "{{tool}} {{status}}"}]
+    },
+    {
+      "id": 16, "type": "timeseries", "title": "16. MCP tool p95 latency",
+      "gridPos": {"x": 18, "y": 21, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, tool) (rate(travel_planner_mcp_tool_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{tool}}"}]
+    },
+    {
+      "id": 17, "type": "stat", "title": "17. Active SSE connections",
+      "gridPos": {"x": 0, "y": 28, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "travel_planner_sse_connections_active", "legendFormat": "active"}]
+    },
+    {
+      "id": 18, "type": "timeseries", "title": "18. SSE terminal outcomes",
+      "gridPos": {"x": 6, "y": 28, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (terminal_status) (increase(travel_planner_sse_connections_total[$__rate_interval]))", "legendFormat": "{{terminal_status}}"}]
+    },
+    {
+      "id": 19, "type": "timeseries", "title": "19. SSE disconnects",
+      "gridPos": {"x": 12, "y": 28, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "increase(travel_planner_sse_disconnects_total[$__rate_interval])", "legendFormat": "disconnects"}]
+    },
+    {
+      "id": 20, "type": "stat", "title": "20. Dependency readiness",
+      "gridPos": {"x": 18, "y": 28, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "NOT READY", "color": "red"}, "1": {"text": "READY", "color": "green"}}}]}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "max by (dependency) (travel_planner_dependency_ready)", "legendFormat": "{{dependency}}"}]
+    }
+  ]
+}

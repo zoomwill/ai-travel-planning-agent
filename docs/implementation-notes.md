@@ -574,3 +574,51 @@ Record deviations from source pseudocode and important engineering decisions her
   existence probe printed strict serializer blocked-deserialization notices for Currency,
   TravelPlan, and TripRequirements; the normal API restart path and integration test restored
   typed state successfully. This diagnostic caveat does not change the strict no-pickle policy.
+
+### 2026-08-19 — Phase P13 observability baseline
+
+- Source intent: Add low-cardinality Prometheus metrics, safe structured logs, full-response HTTP
+  and SSE timing, an optional local Prometheus/Grafana stack, and explicit full-E2E verification
+  without changing the deterministic travel workflow.
+- Implemented approach: Use the already-declared Loguru 0.7.3 and prometheus-client 0.26.0. Each
+  FastAPI app owns a fresh `CollectorRegistry`; the pure ASGI middleware sits outside FastAPI's
+  final error-response layer so normal responses, 404/503, safe 500 responses, full streaming
+  bodies, and disconnect cleanup share one request ID and duration. Graph execution is counted at
+  the existing `ainvoke()`/`astream()` call sites, while node, RAG, search, MCP, reviewer, and SSE
+  wrappers observe only the work already being performed. No wrapper calls the graph a second
+  time, and search wrappers do not join or reorder the five LangGraph `Send` branches.
+- API and privacy deviation: The source description permits raw thread/user correlation only when
+  safe. This implementation never logs raw values; optional `thread_ref`/`user_ref` fields are a
+  stable SHA-256-derived pseudonym, which is correlation rather than anonymization. They never
+  become metric labels. Logs use a strict public field allowlist and omit request bodies, plans,
+  RAG context, MCP payloads, raw exceptions, tracebacks, credentials, DSNs, and connection URLs.
+- Container choice: Prometheus uses the official `prom/prometheus:v3.14.0` image and Grafana uses
+  the maintained official `grafana/grafana:13.1.3` image, both fixed rather than `latest` and both
+  published for arm64. Grafana's older `grafana/grafana-oss` repository is deliberately not used.
+  The `observability` profile preserves the default three-service startup, binds 9090/3000 only to
+  loopback, provisions immutable datasource/dashboard UIDs, and retains data for seven days in
+  named local volumes.
+- Verification: Both default and profile Compose configurations parsed successfully. The pulled
+  images were real arm64 manifests; all five services started, both new healthchecks passed, and
+  the checker reported 7/7 PASS with Prometheus target UP plus the fixed Grafana datasource and
+  20-panel dashboard. Prometheus observed three direct graph successes, three successes for each
+  of the five direct Search kinds, zero active SSE connections, and ready infrastructure gauges.
+  A separate real MCP run discovered STDIO and HTTP tools, returned HTTP 200, and exposed exactly
+  one success for the MCP graph, each Search kind, and each of the five MCP tools, with both MCP
+  dependency gauges at 1. The final ordinary suite passed 352 tests with 10 explicit skips; real
+  integration passed 9 tests with the separately gated P13 test skipped; the final observability
+  run passed its one live E2E. Ruff lint/format and mypy passed. The sole warning is FastAPI's
+  upstream TestClient notice that its current httpx integration is deprecated in favor of
+  `httpx2`; it does not indicate a P13 behavior failure.
+- Current limitation: Metrics are process-local and support one Uvicorn worker only; Python
+  Prometheus multiprocess mode is not configured. There is no production authentication, TLS,
+  alerting, on-call integration, LangSmith/LLM tracing, or real travel inventory. The local
+  anonymous Grafana Viewer is unsuitable for public exposure.
+- Final review correction: Loguru is process-global, so application lifespans now acquire unique
+  leases on one compatible shared sink. Reference counting prevents a nested app shutdown from
+  removing a still-active app's sink, duplicate release is harmless, and conflicting overlap fails
+  explicitly. Request-ID bytes must decode as strict ASCII, the HTTP body is complete only after
+  the final ASGI send succeeds, and SSE success/error is committed only after downstream resumes
+  past the terminal event; these boundaries keep cancellation/disconnect metrics truthful. The
+  redactor also consumes complete Authorization/Cookie header lines and driver-qualified
+  PostgreSQL DSNs instead of leaving later header values or credentials visible.

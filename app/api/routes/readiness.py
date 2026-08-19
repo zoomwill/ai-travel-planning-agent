@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import get_app_resources
@@ -61,6 +61,7 @@ async def run_boolean_probe(
     include_in_schema=False,
 )
 async def readiness(
+    request: Request,
     resources: Annotated[AppResources, Depends(get_app_resources)],
 ) -> ReadinessResponse | JSONResponse:
     """Report ready only when PostgreSQL, Redis, and Chroma all respond."""
@@ -91,6 +92,24 @@ async def readiness(
     statuses = [postgresql_status, redis_status, chroma_status]
     if mcp_status is not None:
         statuses.append(mcp_status)
+    metrics = request.app.state.metrics
+    metrics.dependency_ready.labels(dependency="postgresql").set(
+        1 if postgresql_status == "ok" else 0
+    )
+    metrics.dependency_ready.labels(dependency="redis").set(1 if redis_status == "ok" else 0)
+    metrics.dependency_ready.labels(dependency="chroma").set(1 if chroma_status == "ok" else 0)
+    if mcp_status is not None:
+        mcp_ready = 1 if mcp_status == "ok" else 0
+        http_ready = mcp_ready
+        stdio_ready = mcp_ready
+        if resources.mcp_runtime is not None:
+            servers = resources.mcp_runtime.diagnostics.servers
+            if "travel_tools" in servers:
+                http_ready = 1 if servers["travel_tools"].ready else 0
+            if "local_tools" in servers:
+                stdio_ready = 1 if servers["local_tools"].ready else 0
+        metrics.dependency_ready.labels(dependency="mcp_http").set(http_ready)
+        metrics.dependency_ready.labels(dependency="mcp_stdio").set(stdio_ready)
     is_ready = all(status == "ok" for status in statuses)
     response = ReadinessResponse(
         status="ready" if is_ready else "not_ready",

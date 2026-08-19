@@ -13,6 +13,7 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 
 from app.core.config import Settings
 from app.graphs.graph import TravelPlanningGraph, build_travel_planning_graph
+from app.observability.metrics import MetricsRuntime
 from app.rag.advanced_retriever import AdvancedRetriever
 from app.search.backend import SearchBackend
 
@@ -34,6 +35,8 @@ class PersistenceFactory(Protocol):
         settings: Settings,
         advanced_retriever: AdvancedRetriever | None = None,
         search_backend: SearchBackend | None = None,
+        metrics: MetricsRuntime | None = None,
+        backend_mode: str = "direct",
     ) -> AbstractAsyncContextManager[PersistenceResources]:
         """Return an application-owned persistence context manager."""
 
@@ -52,6 +55,8 @@ async def create_postgres_persistence_resources(
     settings: Settings,
     advanced_retriever: AdvancedRetriever | None = None,
     search_backend: SearchBackend | None = None,
+    metrics: MetricsRuntime | None = None,
+    backend_mode: str = "direct",
 ) -> AsyncIterator[PersistenceResources]:
     """Open exactly one saver and store connection for one application lifespan."""
 
@@ -71,6 +76,8 @@ async def create_postgres_persistence_resources(
             review_max_rounds=settings.review_max_rounds,
             checkpointer=checkpointer,
             store=store,
+            metrics=metrics,
+            backend_mode=backend_mode,
         )
         yield PersistenceResources(
             checkpointer=checkpointer,
