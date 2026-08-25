@@ -1,6 +1,6 @@
 """Build and compile the deterministic travel-planning LangGraph runtime."""
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -17,12 +17,15 @@ from app.graphs.nodes import (
     prepare_search_tasks_node,
     router_node,
 )
-from app.graphs.nodes.planner import route_after_planner
+from app.graphs.nodes.planner import qwen_planner_node, route_after_planner
 from app.graphs.nodes.prepare_search_tasks import dispatch_search_tasks
 from app.graphs.nodes.retriever import ContextRetriever, advanced_retriever_node
 from app.graphs.nodes.reviewer import reviewer_node, route_after_review
 from app.graphs.nodes.search_worker import search_worker_node
 from app.graphs.state import TravelPlanState
+from app.llm.diagnostics import record_deterministic_fallback
+from app.llm.protocol import StructuredLLMProvider
+from app.llm.reviewer import FallbackPlanReviewer, QwenPlanReviewer
 from app.observability.instrumentation import (
     InstrumentedSearchBackend,
     instrument_node,
@@ -55,13 +58,32 @@ def build_travel_planning_graph(
     store: BaseStore | None = None,
     metrics: MetricsRuntime | None = None,
     backend_mode: str = "direct",
+    reasoning_mode: Literal["deterministic", "qwen"] = "deterministic",
+    llm_provider: StructuredLLMProvider | None = None,
+    allow_deterministic_fallback: bool = False,
 ) -> TravelPlanningGraph:
-    """Compile the deterministic graph with optional persistence dependencies."""
+    """Compile the graph with deterministic defaults and optional Qwen reasoning."""
 
     backend = search_backend or DeterministicMockSearchBackend()
     if metrics is not None:
         backend = InstrumentedSearchBackend(backend, metrics, backend_mode)
-    reviewer = plan_reviewer or DeterministicPlanReviewer()
+    if plan_reviewer is not None:
+        reviewer = plan_reviewer
+    elif reasoning_mode == "qwen" and llm_provider is not None:
+        qwen_reviewer = QwenPlanReviewer(llm_provider)
+        reviewer = (
+            FallbackPlanReviewer(qwen_reviewer, DeterministicPlanReviewer(), metrics)
+            if allow_deterministic_fallback
+            else qwen_reviewer
+        )
+    else:
+        reviewer = DeterministicPlanReviewer()
+    reviewer_fallback_without_provider = (
+        plan_reviewer is None
+        and reasoning_mode == "qwen"
+        and llm_provider is None
+        and allow_deterministic_fallback
+    )
 
     async def configured_retriever_node(state: TravelPlanState) -> dict[str, Any]:
         """Run the Retriever node with this graph's injected dependency."""
@@ -82,11 +104,25 @@ def build_travel_planning_graph(
     async def configured_reviewer_node(state: TravelPlanState) -> TravelPlanState:
         """Run Reviewer with this graph's injected policy and scoring settings."""
 
+        if reviewer_fallback_without_provider:
+            record_deterministic_fallback(metrics, "reviewer", "llm_not_configured")
         return await reviewer_node(
             state,
             reviewer=reviewer,
             score_threshold=review_score_threshold,
             max_review_rounds=review_max_rounds,
+        )
+
+    async def configured_planner_node(state: TravelPlanState) -> TravelPlanState:
+        """Select the configured Planner without changing graph topology."""
+
+        if reasoning_mode == "deterministic":
+            return planner_node(state)
+        return await qwen_planner_node(
+            state,
+            provider=llm_provider,
+            allow_deterministic_fallback=allow_deterministic_fallback,
+            metrics=metrics,
         )
 
     def configured_finalize_plan_node(state: TravelPlanState) -> TravelPlanState:
@@ -126,7 +162,7 @@ def build_travel_planning_graph(
         "initialize_review_cycle",
         observed("initialize_review_cycle", initialize_review_cycle_node),
     )
-    builder.add_node("planner", observed("planner", planner_node))
+    builder.add_node("planner", observed("planner", configured_planner_node))
     builder.add_node("reviewer", observed("reviewer", configured_reviewer_node))
     builder.add_node(
         "finalize_plan",
@@ -158,5 +194,5 @@ def build_travel_planning_graph(
     return builder.compile(
         checkpointer=checkpointer,
         store=store,
-        name="deterministic-travel-planning-agent",
+        name=f"{reasoning_mode}-travel-planning-agent",
     )

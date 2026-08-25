@@ -316,6 +316,16 @@ async def create_thread_plan(
         "review_output_invalid",
         "revision_failed",
         "finalization_failed",
+        "llm_not_configured",
+        "llm_invalid_base_url",
+        "llm_timeout",
+        "llm_rate_limited",
+        "llm_authentication_failed",
+        "llm_transport_error",
+        "llm_invalid_json",
+        "llm_schema_validation_failed",
+        "llm_grounding_violation",
+        "llm_provider_error",
     }:
         _raise_api_error(
             status.HTTP_503_SERVICE_UNAVAILABLE,

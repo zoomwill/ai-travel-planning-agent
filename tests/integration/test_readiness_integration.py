@@ -5,6 +5,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import Settings
 from app.main import create_app
 
 pytestmark = pytest.mark.integration
@@ -15,7 +16,7 @@ pytestmark = pytest.mark.integration
     reason="set RUN_INTEGRATION_TESTS=1 to check local Docker infrastructure",
 )
 def test_readiness_against_docker_services() -> None:
-    app = create_app()
+    app = create_app(settings=Settings(agent_reasoning_mode="deterministic"))
 
     with TestClient(app) as client:
         response = client.get("/ready")

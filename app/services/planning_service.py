@@ -43,6 +43,15 @@ class PlanningProviders:
     get_route: RouteLookup
 
 
+@dataclass(frozen=True, slots=True)
+class GroundedPlanningSelection:
+    """Validated provider objects chosen by an optional reasoning layer."""
+
+    flight: FlightOption
+    hotel: HotelOption
+    attractions_by_day: list[list[Attraction]]
+
+
 MOCK_PLANNING_PROVIDERS: Final = PlanningProviders(
     search_flights=search_flights,
     search_hotels=search_hotels,
@@ -103,6 +112,7 @@ def assemble_travel_plan_from_results(
     remembered_preferences: Sequence[str] = (),
     unavailable_searches: Sequence[str] = (),
     revision_policy: RevisionPolicy | None = None,
+    grounded_selection: GroundedPlanningSelection | None = None,
 ) -> TravelPlan:
     """Combine validated search results without calling any provider."""
 
@@ -112,13 +122,20 @@ def assemble_travel_plan_from_results(
         raise PlanningServiceError("hotel selection")
 
     policy = revision_policy or RevisionPolicy()
-    flight = _select_flight(flight_options, policy)
-    hotel = _select_hotel(hotel_options, policy)
-    planned_attractions = _select_attractions(
-        attractions,
-        policy=policy,
-        preferences=[*requirements.preferences, *remembered_preferences],
-    )
+    if grounded_selection is None:
+        flight = _select_flight(flight_options, policy)
+        hotel = _select_hotel(hotel_options, policy)
+        planned_attractions = _select_attractions(
+            attractions,
+            policy=policy,
+            preferences=[*requirements.preferences, *remembered_preferences],
+        )
+        attractions_by_day = None
+    else:
+        flight = grounded_selection.flight
+        hotel = grounded_selection.hotel
+        planned_attractions = []
+        attractions_by_day = grounded_selection.attractions_by_day
 
     try:
         daily_itinerary = _build_daily_itinerary(
@@ -129,6 +146,7 @@ def assemble_travel_plan_from_results(
             route=route,
             flight=flight,
             max_activities_per_day=policy.max_activities_per_day,
+            attractions_by_day=attractions_by_day,
         )
         hotel_cost = hotel.price_per_night * Decimal(len(daily_itinerary))
         activity_cost = sum(
@@ -229,11 +247,14 @@ def _build_daily_itinerary(
     route: RouteSummary | None,
     flight: FlightOption,
     max_activities_per_day: int | None = None,
+    attractions_by_day: Sequence[Sequence[Attraction]] | None = None,
 ) -> list[DailyItinerary]:
     """Create one day entry per inclusive trip date using repeatable rules."""
 
     weather_by_date = {summary.date: summary for summary in weather}
     day_count = (requirements.end_date - requirements.start_date).days + 1
+    if attractions_by_day is not None and len(attractions_by_day) != day_count:
+        raise PlanningServiceError("grounded attraction schedule")
     traveler_count = Decimal(requirements.travelers)
     attraction_index = 0
     itinerary: list[DailyItinerary] = []
@@ -245,7 +266,11 @@ def _build_daily_itinerary(
         if max_activities_per_day is not None:
             visit_count = min(visit_count, max_activities_per_day)
         daily_attractions: list[Attraction] = []
-        if attractions:
+        if attractions_by_day is not None:
+            daily_attractions = list(attractions_by_day[offset])
+            if max_activities_per_day is not None:
+                daily_attractions = daily_attractions[:max_activities_per_day]
+        elif attractions:
             daily_attractions = [
                 attractions[(attraction_index + index) % len(attractions)]
                 for index in range(visit_count)

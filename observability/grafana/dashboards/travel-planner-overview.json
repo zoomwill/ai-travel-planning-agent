@@ -142,6 +142,32 @@
       "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
       "fieldConfig": {"defaults": {"min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "NOT READY", "color": "red"}, "1": {"text": "READY", "color": "green"}}}]}, "overrides": []},
       "targets": [{"refId": "A", "expr": "max by (dependency) (travel_planner_dependency_ready)", "legendFormat": "{{dependency}}"}]
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "21. LLM requests",
+      "gridPos": {"x": 0, "y": 35, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (role, status) (rate(travel_planner_llm_requests_total[$__rate_interval]))", "legendFormat": "{{role}} {{status}}"}]
+    },
+    {
+      "id": 22, "type": "timeseries", "title": "22. LLM error rate",
+      "gridPos": {"x": 6, "y": 35, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "sum by (role) (rate(travel_planner_llm_requests_total{status=~\"error|timeout|invalid_response\"}[$__rate_interval])) / clamp_min(sum by (role) (rate(travel_planner_llm_requests_total[$__rate_interval])), 1e-9)", "legendFormat": "{{role}}"}]
+    },
+    {
+      "id": 23, "type": "timeseries", "title": "23. LLM p95 duration",
+      "gridPos": {"x": 12, "y": 35, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, role) (rate(travel_planner_llm_request_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{role}}"}]
+    },
+    {
+      "id": 24, "type": "timeseries", "title": "24. LLM token usage",
+      "gridPos": {"x": 18, "y": 35, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (direction) (rate(travel_planner_llm_tokens_total[$__rate_interval]))", "legendFormat": "{{direction}}"}]
     }
   ]
 }

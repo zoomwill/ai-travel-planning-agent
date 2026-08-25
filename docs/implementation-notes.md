@@ -622,3 +622,91 @@ Record deviations from source pseudocode and important engineering decisions her
   past the terminal event; these boundaries keep cancellation/disconnect metrics truthful. The
   redactor also consumes complete Authorization/Cookie header lines and driver-qualified
   PostgreSQL DSNs instead of leaving later header values or credentials visible.
+
+### 2026-08-25 — Phase P14 grounded Qwen reasoning
+
+- Source intent: Add real Qwen reasoning without replacing P08 search concurrency, P09 loop safety,
+  P10 retrieval, P11 fixed MCP tool mapping, P12 progress SSE, or P13 privacy boundaries. The
+  default remains deterministic and initializes no model client.
+- Current API choice: Use Alibaba Cloud Model Studio's official OpenAI-compatible Chat Completions
+  API through `openai` 3.3.1. JSON tasks use `response_format={"type":"json_object"}` and
+  `extra_body={"enable_thinking":false}`. The SDK's own retries are disabled; the provider applies
+  the project's bounded retry policy so two independent retry layers cannot multiply calls.
+- Real-output deviation: Model Studio JSON mode guarantees parseable JSON, not adherence to a
+  Pydantic class name that exists only in Python. Initial real acceptance therefore exposed one
+  schema-validation failure. Planner and Reviewer prompts now include their exact bounded output
+  contracts, and the Planner repeats only the current candidate IDs and required day numbers in a
+  compact authoritative allowlist. Local Pydantic and grounding validation remains strict; it was
+  not weakened to accept invented fields or candidates. Safe grounding diagnostics record only a
+  fixed reason category while the public error stays `llm_grounding_violation`.
+- Endpoint deviation and safety: Rather than accepting arbitrary compatible endpoints, Settings
+  requires HTTPS and current official DashScope or documented regional workspace/trial
+  `maas.aliyuncs.com` hosts with the exact compatibility path. This preserves provider flexibility
+  while preventing a key from being sent to localhost, an IP, or an untrusted hostname.
+- Planner architecture: Qwen returns only stable SHA-256-derived candidate IDs and a per-day
+  attraction schedule. Application validation resolves exact original provider objects, rejects
+  unknown/duplicate candidates and revision-policy bypass, then calls the existing deterministic
+  assembler for dates, facts, and costs. Provider data models were not modified.
+- Reviewer architecture: Qwen returns four bounded dimensions, critique, issue codes, and advisory
+  changes. Application code computes the equal-weight overall score and retains P09's threshold,
+  maximum rounds, forced finalization, and issue-code-to-RevisionPolicy mapping. Raw model output,
+  SDK objects, exceptions, prompts, and hidden reasoning are not checkpointed.
+- Optional work deliberately omitted: Qwen query expansion and LLM MCP tool selection are not
+  implemented. Existing deterministic multi-query retrieval and fixed five-tool mapping are
+  already stable; adding calls would increase cost and variability without being required for
+  Planner/Reviewer reasoning.
+- Observability and fallback: New metrics use only role/status or input/output labels. Tokens are
+  counted only from real SDK usage. Deterministic fallback is disabled by default and, if explicitly
+  enabled, produces a visible fallback metric and safe log rather than a false Qwen success.
+- Remaining limitations: Qwen reasons over local mock search data and demo RAG evidence. It does
+  not provide live inventory, verified prices, booking, payment, authentication, frontend, or
+  token-level SSE streaming. Real API availability and model entitlement require the separately
+  gated smoke/integration checks and are never inferred from offline tests.
+- Actual P14 verification: The focused offline suite passed 48 tests, strict mypy reported no
+  issues in 127 application files, Ruff format passed, and the full ordinary suite passed 400
+  tests with 11 explicit integration skips. With the five local containers available, the
+  deterministic infrastructure integration suite passed 9 tests with one separately gated
+  observability test skipped. Real Prometheus query parsing accepted all four LLM dashboard
+  expressions after substituting Grafana's rate interval with five minutes.
+- Real-provider acceptance: A separately gated, locally configured Singapore workspace used
+  `qwen3.7-plus`; no endpoint or credential was recorded. The explicit smoke response passed its
+  strict schema with SDK-reported usage of 39 input and 5 output tokens; the command's wall-clock
+  time was about 2.72 seconds and is not a latency benchmark. Real acceptance initially exposed the
+  JSON-contract issue above and then a grounding rejection; after the minimal prompt/allowlist
+  correction, the gated persistent Planner/Reviewer invariant test passed.
+- Real streaming acceptance: One unique persistent Qwen-mode SSE request completed with 44
+  strictly sequenced business events, five search categories, Planner and Reviewer progress,
+  exactly one final `plan_completed`, no business `error`, and exactly one successful graph run.
+  The application-controlled loop used three Planner and three Reviewer calls before forced
+  finalization at the configured maximum. The SDK reported 8,538 input and 2,260 output tokens for
+  this single streaming workflow. Public state, 16 readable checkpoint-history entries, four RAG
+  parent results, and the explicitly remembered preference survived strict MessagePack recovery;
+  no SDK client, raw completion, prompt, authorization value, secret, or DSN appeared in the public
+  state or captured structured logs. These numbers describe only this acceptance run and are not
+  performance, quality, cost, or production-readiness claims.
+- Final review correction: Model Studio's current OpenAI-compatible documentation marks
+  `max_tokens` for deprecation and recommends `max_completion_tokens`. The provider now passes a
+  validated `QWEN_MAX_COMPLETION_TOKENS` value (default 2048, allowed 256–4096), while keeping the
+  SDK retry layer disabled and the application retry count bounded. Strict JSON parsing now rejects
+  duplicate object keys, non-standard NaN/infinity constants, and numeric-string coercion instead
+  of accepting Python/Pydantic's permissive defaults. Prompt DTO string items have their own bounds;
+  common bearer/key/DSN shapes are redacted; and angle brackets in untrusted JSON are escaped so
+  delimiter text cannot close its data block. Qwen model IDs are also pattern-limited before their
+  safe status/log exposure, and the shared log redactor now recognizes a bare `sk-...` key shape.
+  Finally, an explicitly enabled Qwen-to-deterministic fallback records both Planner and Reviewer
+  use even when startup had no provider, rather than making the Reviewer fallback silent. These
+  changes do not alter candidate grounding, graph topology, checkpoint format, or P12's
+  single-execution SSE design.
+- Integration isolation correction: The first final-review Docker run inherited the local
+  qwen-mode `.env`, so two pre-P14 integration tests unintentionally made nine real structured
+  model calls. No secret, prompt, or completion was logged, and the calls confirmed the new
+  completion-limit parameter was accepted, but `RUN_INTEGRATION_TESTS=1` is not the paid-model
+  opt-in. Those in-process readiness/direct-SSE tests now explicitly select deterministic mode;
+  only the separate `RUN_LLM_INTEGRATION_TESTS=1` gate can enable the real Qwen invariant test.
+- Final review verification: The focused P14 plus logging suite passed 67 tests. Ruff lint and
+  format checks passed, strict mypy reported no issues in 127 application files, `git diff --check`
+  passed, and the final ordinary suite passed 414 tests with 11 explicitly gated skips. After the
+  isolation correction, the Docker integration suite passed 9 tests with 2 independently gated
+  tests skipped and emitted no LLM request logs. The final separately enabled real Qwen
+  Planner/Reviewer invariant passed once in 50.94 seconds. That duration is only this command's
+  wall-clock observation, not a latency benchmark or production claim.

@@ -119,7 +119,10 @@ def _assert_complete_stream(response_text: str) -> list[dict[str, object]]:
 def test_direct_stream_persists_revision_memory_and_survives_restart() -> None:
     """Real PostgreSQL/RAG direct streams persist both normal and revised plans."""
 
-    settings = Settings(travel_search_backend_mode="direct")
+    settings = Settings(
+        travel_search_backend_mode="direct",
+        agent_reasoning_mode="deterministic",
+    )
     unique = uuid4().hex
     normal_thread = f"p12-{unique}-direct"
     revision_thread = f"p12-{unique}-revision"

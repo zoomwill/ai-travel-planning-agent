@@ -11,6 +11,7 @@ from app.core.config import Settings
 from app.infrastructure.chroma import ChromaClientProvider
 from app.infrastructure.postgres import create_postgres_engine
 from app.infrastructure.redis import create_redis_client
+from app.llm.runtime import LLMRuntime
 from app.mcp_tools.backend import UnavailableMCPTravelSearchBackend
 from app.mcp_tools.client import MCPRuntime, create_mcp_runtime
 from app.rag.runtime import AdvancedRagRuntime, create_advanced_rag_runtime
@@ -28,6 +29,7 @@ class AppResources:
     rag_runtime: AdvancedRagRuntime | None = None
     mcp_runtime: MCPRuntime | None = None
     search_backend: SearchBackend | None = None
+    llm_runtime: LLMRuntime | None = None
 
 
 ResourceFactory = Callable[[Settings], Awaitable[AppResources]]
@@ -80,11 +82,17 @@ async def close_app_resources(resources: AppResources) -> None:
 
     errors: list[Exception] = []
 
-    cleanups: tuple[Callable[[], Awaitable[None]], ...] = (
-        resources.chroma_client.aclose,
-        resources.redis_client.aclose,
-        resources.postgres_engine.dispose,
+    cleanup_list: list[Callable[[], Awaitable[None]]] = []
+    if resources.llm_runtime is not None:
+        cleanup_list.append(resources.llm_runtime.aclose)
+    cleanup_list.extend(
+        (
+            resources.chroma_client.aclose,
+            resources.redis_client.aclose,
+            resources.postgres_engine.dispose,
+        )
     )
+    cleanups = tuple(cleanup_list)
     for cleanup in cleanups:
         try:
             await cleanup()

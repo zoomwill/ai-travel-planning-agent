@@ -178,11 +178,13 @@ Never use `docker compose down -v` for ordinary stopping; `-v` deletes named-vol
 
 ## Provisioned dashboard panels
 
-The file-provisioned dashboard has exactly these 20 panels: HTTP request rate, HTTP error rate,
+The file-provisioned dashboard started with 20 P13 panels: HTTP request rate, HTTP error rate,
 HTTP p50/p95/p99 latency, HTTP in-progress, graph run rate, graph outcomes, graph p95, node p95,
 review rounds, finalization outcome, RAG cache outcomes, RAG latency, Search task status, Search
 p95, MCP tool status, MCP p95, active SSE connections, SSE terminal outcomes, SSE disconnects, and
-dependency readiness. Histogram panels use `histogram_quantile()` over rate-of-buckets grouped by
+dependency readiness. P14 appends four panels without changing those originals: LLM requests,
+LLM error rate, LLM p95 duration, and provider-reported token usage. Histogram panels use
+`histogram_quantile()` over rate-of-buckets grouped by
 `le`. Empty data remains empty rather than being presented as success.
 
 ## Tests and full E2E

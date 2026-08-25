@@ -24,6 +24,7 @@ dependencies = [
     "sentence-transformers>=5.7.0",
     "fastmcp>=3.4,<4",
     "langchain-mcp-adapters>=0.3,<0.4",
+    "openai>=3.3.1",
 ]
 
 [dependency-groups]
@@ -52,6 +53,7 @@ asyncio_mode = "auto"
 markers = [
     "integration: requires explicitly enabled local Docker infrastructure",
     "observability: requires RUN_OBSERVABILITY_TESTS=1 and the local P13 stack",
+    "llm_integration: requires RUN_LLM_INTEGRATION_TESTS=1 and a real Qwen API key",
 ]
 
 [build-system]

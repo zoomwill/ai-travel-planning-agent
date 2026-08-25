@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -53,6 +53,29 @@ class Settings(BaseSettings):
     sse_heartbeat_seconds: float = Field(default=10.0, gt=0, le=14.0)
     sse_queue_maxsize: int = Field(default=64, ge=1, le=1024)
 
+    agent_reasoning_mode: Literal["deterministic", "qwen"] = "deterministic"
+    qwen_model: str = Field(
+        default="qwen-plus",
+        min_length=1,
+        max_length=128,
+        pattern=r"^qwen[A-Za-z0-9._/-]{0,124}$",
+    )
+    qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    qwen_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices(
+            "qwen_api_key",
+            "QWEN_API_KEY",
+            "DASHSCOPE_API_KEY",
+        ),
+    )
+    qwen_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    qwen_max_retries: int = Field(default=1, ge=0, le=2)
+    qwen_max_completion_tokens: int = Field(default=2048, ge=256, le=4096)
+    qwen_temperature: float = Field(default=0.2, ge=0, le=0.2)
+    qwen_enable_thinking: bool = False
+    qwen_allow_deterministic_fallback: bool = False
+
     rag_pipeline_version: str = Field(default="advanced-v1", min_length=1, max_length=64)
     rag_child_collection: str = Field(
         default="travel_knowledge_children_v1",
@@ -87,6 +110,22 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @field_validator("qwen_model", mode="before")
+    @classmethod
+    def default_empty_qwen_model(cls, value: object) -> object:
+        """Treat the pre-P14 template's empty value as the documented safe default."""
+
+        return "qwen-plus" if value == "" else value
+
+    @field_validator("qwen_base_url", mode="before")
+    @classmethod
+    def default_empty_qwen_base_url(cls, value: object) -> object:
+        """Normalize the pre-P14 blank endpoint to the official Beijing endpoint."""
+
+        if value == "":
+            return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        return value
+
     @model_validator(mode="after")
     def validate_rag_relationships(self) -> "Settings":
         """Reject settings that would create invalid RAG or local MCP behavior."""
@@ -97,6 +136,17 @@ class Settings(BaseSettings):
             raise ValueError("rag_child_chunk_overlap must be smaller than child chunk size")
         if self.rag_final_parent_k > self.rag_rerank_top_k:
             raise ValueError("rag_final_parent_k cannot exceed rag_rerank_top_k")
+        from app.llm.configuration import validate_qwen_base_url
+        from app.llm.errors import LLMError
+
+        try:
+            validate_qwen_base_url(self.qwen_base_url)
+        except LLMError:
+            raise ValueError(
+                "qwen_base_url must be an official HTTPS Model Studio endpoint"
+            ) from None
+        if self.qwen_enable_thinking:
+            raise ValueError("qwen_enable_thinking must remain false for P14 JSON tasks")
         expected_mcp_url = f"http://{self.mcp_http_host}:{self.mcp_http_port}{self.mcp_http_path}"
         if not self.mcp_http_url:
             self.mcp_http_url = expected_mcp_url
@@ -115,6 +165,12 @@ class Settings(BaseSettings):
                 "mcp_http_url must exactly match the configured local host, port, and path"
             )
         return self
+
+    @property
+    def qwen_is_configured(self) -> bool:
+        """Report key presence without exposing the key value."""
+
+        return bool(self.qwen_api_key.get_secret_value())
 
     @property
     def postgres_url(self) -> URL:

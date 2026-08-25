@@ -116,7 +116,8 @@ def test_standalone_redaction_covers_common_secret_shapes() -> None:
     private = (
         "Cookie: session=hidden; theme=private\n"
         "password=hunter2 token=abc redis://:secret@localhost/0 "
-        "postgresql+psycopg://user:driver-secret@localhost/db"
+        "postgresql+psycopg://user:driver-secret@localhost/db "
+        "sk-ws-not-a-real-key-12345"
     )
     redacted = redact_text(private)
     assert all(
@@ -130,5 +131,6 @@ def test_standalone_redaction_covers_common_secret_shapes() -> None:
             "secret",
             "postgresql+psycopg://",
             "driver-secret",
+            "sk-ws-not-a-real-key-12345",
         )
     )

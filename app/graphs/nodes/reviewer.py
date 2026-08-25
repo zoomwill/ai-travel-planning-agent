@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from app.domain.models import TravelPlan
 from app.graphs.state import TravelPlanState
+from app.llm.errors import LLMError
 from app.review.fingerprint import create_draft_fingerprint
 from app.review.models import (
     FinalizationReason,
@@ -47,6 +48,8 @@ async def reviewer_node(
             max_review_rounds=max_review_rounds,
         )
         review = PlanReview.model_validate(raw_review)
+    except LLMError as exc:
+        return _review_failure(exc.code)
     except ValidationError:
         return _review_failure("review_output_invalid")
     except Exception:
@@ -119,7 +122,7 @@ def _review_failure(error_code: str) -> TravelPlanState:
 
     return {
         "current_review": None,
-        "critique": "The deterministic quality review could not complete.",
+        "critique": "The quality review could not complete.",
         "revision_policy": None,
         "review_status": "failed",
         "finalization_reason": "reviewer_failure",

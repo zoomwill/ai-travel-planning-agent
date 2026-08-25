@@ -45,13 +45,16 @@ SSE_EVENT_TYPES = frozenset(
         "error",
     }
 )
-DEPENDENCIES = frozenset({"postgresql", "redis", "chroma", "mcp_http", "mcp_stdio"})
+DEPENDENCIES = frozenset({"postgresql", "redis", "chroma", "mcp_http", "mcp_stdio", "qwen"})
 CACHE_STATUSES = frozenset({"hit", "miss", "disabled", "unavailable"})
 REVIEW_STATUSES = frozenset({"accepted", "forced_finalized", "failed", "pending"})
 FINALIZATION_REASONS = frozenset(
     {"threshold_reached", "max_review_rounds_reached", "reviewer_failure", "unknown"}
 )
 SSE_TERMINAL_STATUSES = frozenset({"success", "error", "disconnect", "cancelled"})
+LLM_ROLES = frozenset({"planner", "reviewer", "query_expander"})
+LLM_STATUSES = frozenset({"success", "error", "timeout", "invalid_response", "fallback"})
+LLM_TOKEN_DIRECTIONS = frozenset({"input", "output"})
 
 
 def normalize_label(value: object, allowed: frozenset[str]) -> str:
@@ -87,6 +90,9 @@ class MetricsRuntime:
     sse_duration: Histogram
     sse_events: Counter
     sse_disconnects: Counter
+    llm_requests: Counter
+    llm_duration: Histogram
+    llm_tokens: Counter
     dependency_ready: Gauge
 
     @classmethod
@@ -232,6 +238,25 @@ class MetricsRuntime:
             sse_disconnects=Counter(
                 "travel_planner_sse_disconnects",
                 "SSE consumer disconnects.",
+                registry=owned_registry,
+            ),
+            llm_requests=Counter(
+                "travel_planner_llm_requests",
+                "Structured LLM request outcomes.",
+                ("role", "status"),
+                registry=owned_registry,
+            ),
+            llm_duration=Histogram(
+                "travel_planner_llm_request_duration_seconds",
+                "Structured LLM request duration.",
+                ("role", "status"),
+                buckets=workflow_buckets,
+                registry=owned_registry,
+            ),
+            llm_tokens=Counter(
+                "travel_planner_llm_tokens",
+                "Provider-reported LLM tokens; missing usage is never estimated.",
+                ("direction",),
                 registry=owned_registry,
             ),
             dependency_ready=Gauge(

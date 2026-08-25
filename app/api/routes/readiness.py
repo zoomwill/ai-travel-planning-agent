@@ -83,15 +83,30 @@ async def readiness(
                 resources.settings.mcp_discovery_timeout_seconds,
             )
 
+    qwen_status: ServiceStatus | None = None
+    if resources.settings.agent_reasoning_mode == "qwen":
+        runtime = resources.llm_runtime
+        qwen_status = (
+            "ok"
+            if runtime is not None
+            and runtime.provider is not None
+            and runtime.diagnostics.configured
+            and runtime.diagnostics.initialization_error is None
+            else "error"
+        )
+
     services = InfrastructureReadiness(
         postgresql=ServiceReadiness(status=postgresql_status),
         redis=ServiceReadiness(status=redis_status),
         chroma=ServiceReadiness(status=chroma_status),
         mcp=ServiceReadiness(status=mcp_status) if mcp_status is not None else None,
+        qwen=ServiceReadiness(status=qwen_status) if qwen_status is not None else None,
     )
     statuses = [postgresql_status, redis_status, chroma_status]
     if mcp_status is not None:
         statuses.append(mcp_status)
+    if qwen_status is not None:
+        statuses.append(qwen_status)
     metrics = request.app.state.metrics
     metrics.dependency_ready.labels(dependency="postgresql").set(
         1 if postgresql_status == "ok" else 0
@@ -110,6 +125,8 @@ async def readiness(
                 stdio_ready = 1 if servers["local_tools"].ready else 0
         metrics.dependency_ready.labels(dependency="mcp_http").set(http_ready)
         metrics.dependency_ready.labels(dependency="mcp_stdio").set(stdio_ready)
+    if qwen_status is not None:
+        metrics.dependency_ready.labels(dependency="qwen").set(1 if qwen_status == "ok" else 0)
     is_ready = all(status == "ok" for status in statuses)
     response = ReadinessResponse(
         status="ready" if is_ready else "not_ready",

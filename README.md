@@ -19,7 +19,7 @@ The screenshots describe a rich architecture and include many code-like examples
 - Docker Compose services for PostgreSQL, Redis, and Chroma.
 - Validated travel-domain models for requirements and provider results.
 - Deterministic mock flight, hotel, attraction, weather, and route providers.
-- A deterministic LangGraph Router-to-Planner runtime with no real LLM dependency.
+- A deterministic-by-default LangGraph runtime with an optional grounded Qwen reasoning mode.
 - A local Markdown RAG pipeline backed by the existing Chroma service.
 - A project specification reconstructed from the screenshots.
 - A phase-by-phase beginner build plan.
@@ -227,3 +227,49 @@ docker compose --profile observability stop prometheus grafana
 
 The final command stops only the two observability containers and preserves all five named
 volumes. Do not use `docker compose down -v` unless you deliberately intend to destroy local data.
+
+## Optional real Qwen reasoning
+
+Phase P14 keeps `AGENT_REASONING_MODE=deterministic` as the default, so local development and the
+ordinary test suite need no API key and make no paid model call. The opt-in `qwen` mode uses
+Alibaba Cloud Model Studio's OpenAI-compatible Chat Completions API. The `openai` Python package
+is the compatible client library here; the configured model is Alibaba Qwen, not an OpenAI model.
+Read the security and beginner guide in
+[`docs/21_QWEN_LLM_INTEGRATION.md`](docs/21_QWEN_LLM_INTEGRATION.md) before enabling it.
+
+Choose the official base URL for the same Model Studio region as your key, then place values only
+in the ignored local `.env` file:
+
+```dotenv
+AGENT_REASONING_MODE=qwen
+QWEN_MODEL=qwen-plus
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_API_KEY=replace-with-your-own-key
+QWEN_MAX_COMPLETION_TOKENS=2048
+QWEN_ALLOW_DETERMINISTIC_FALLBACK=false
+```
+
+`DASHSCOPE_API_KEY` is accepted as an alternative environment variable. Never set both names in
+the same file, never paste a real key into source or a terminal command, and never expose this
+unauthenticated local API publicly. Run the one explicit paid smoke check, then start the app:
+
+```bash
+uv run python scripts/check_qwen.py
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+Inspect `GET /api/v1/llm/status` without making a paid call. In qwen mode, `/ready` returns 503
+when the key/client was not configured at startup; `/health` remains a no-dependency liveness
+check. Set `AGENT_REASONING_MODE=deterministic` to disable Qwen again.
+
+Qwen selects only stable IDs from the existing flight, hotel, and attraction candidates and gives
+the Reviewer structured scores and critique. Application code validates those IDs, assembles all
+facts and prices from existing domain objects, computes the overall score, enforces the threshold
+and maximum review rounds, and maps issue codes to allowlisted revisions. MCP tool mapping and
+P08's five-way search remain deterministic. P12 SSE still streams agent workflow progress, not
+Qwen tokens.
+
+P14 does **not** add real-time flight/hotel inventory, live weather or maps, booking, payment,
+frontend, authentication, or production deployment. Search and MCP data remain invented local
+fixtures, the RAG corpus remains a local demo, and Qwen supplies reasoning rather than travel
+facts. Verify all prices, availability, hours, weather, and transport information independently.

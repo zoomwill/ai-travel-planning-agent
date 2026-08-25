@@ -21,6 +21,7 @@ class InfrastructureReadiness(BaseModel):
     redis: ServiceReadiness
     chroma: ServiceReadiness
     mcp: ServiceReadiness | None = None
+    qwen: ServiceReadiness | None = None
 
 
 class ReadinessResponse(BaseModel):

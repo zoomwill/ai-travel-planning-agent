@@ -1,5 +1,6 @@
 """Planner node that combines results already produced by P08 subagents."""
 
+from dataclasses import dataclass
 from typing import Literal, TypeVar
 
 from pydantic import BaseModel
@@ -10,9 +11,20 @@ from app.domain.models import (
     HotelOption,
     RouteSummary,
     TravelPlan,
+    TripRequirements,
     WeatherSummary,
 )
 from app.graphs.state import TravelPlanState
+from app.llm.diagnostics import record_deterministic_fallback
+from app.llm.errors import LLMError
+from app.llm.grounding import (
+    GroundingViolation,
+    build_grounded_planner_input,
+    validate_grounded_decision,
+)
+from app.llm.protocol import StructuredLLMProvider
+from app.observability.logging import log_event
+from app.observability.metrics import MetricsRuntime
 from app.review.models import RevisionPolicy
 from app.search.models import (
     JsonObject,
@@ -30,6 +42,20 @@ _NON_CRITICAL_KINDS = (
     SearchKind.WEATHER,
     SearchKind.ROUTE,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _PlanningInputs:
+    """Validated values shared by deterministic and Qwen Planner paths."""
+
+    requirements: TripRequirements
+    revision_policy: RevisionPolicy
+    flights: list[FlightOption]
+    hotels: list[HotelOption]
+    attractions: list[Attraction]
+    weather: list[WeatherSummary]
+    route: RouteSummary | None
+    unavailable: list[str]
 
 
 def _validate_models(model_type: type[ModelT], data: list[JsonObject]) -> list[ModelT]:
@@ -70,6 +96,76 @@ def _critical_error(kinds: list[SearchKind]) -> TravelPlanState:
 
 def planner_node(state: TravelPlanState) -> TravelPlanState:
     """Assemble a first or revised draft from existing search and context data."""
+
+    prepared = _prepare_planning_inputs(state)
+    if isinstance(prepared, dict):
+        return prepared
+    return _assemble_plan(state, prepared)
+
+
+async def qwen_planner_node(
+    state: TravelPlanState,
+    *,
+    provider: StructuredLLMProvider | None,
+    allow_deterministic_fallback: bool,
+    metrics: MetricsRuntime | None = None,
+) -> TravelPlanState:
+    """Let Qwen select candidates, then reuse the existing grounded assembler."""
+
+    prepared = _prepare_planning_inputs(state)
+    if isinstance(prepared, dict):
+        return prepared
+    if provider is None:
+        error = LLMError("llm_not_configured")
+    else:
+        try:
+            grounded = build_grounded_planner_input(
+                requirements=prepared.requirements,
+                flights=prepared.flights,
+                hotels=prepared.hotels,
+                attractions=prepared.attractions,
+                retrieved_context=state.get("retrieved_context", []),
+                remembered_preferences=state.get("remembered_preferences", []),
+                unavailable_searches=prepared.unavailable,
+                revision_policy=prepared.revision_policy,
+            )
+            result = await provider.plan(grounded.prompt)
+            selection = validate_grounded_decision(
+                result.value,
+                grounded,
+                requirements=prepared.requirements,
+                revision_policy=prepared.revision_policy,
+            )
+            return _assemble_plan(state, prepared, grounded_selection=selection)
+        except LLMError as exc:
+            error = exc
+            if isinstance(exc, GroundingViolation):
+                log_event(
+                    "llm_grounding_rejected",
+                    "A structured Planner choice failed local grounding.",
+                    component="llm",
+                    role="planner",
+                    outcome="error",
+                    error_code=f"{exc.code}:{exc.reason}",
+                )
+        except Exception:
+            error = LLMError("llm_provider_error")
+
+    if allow_deterministic_fallback:
+        record_deterministic_fallback(metrics, "planner", error.code)
+        return _assemble_plan(state, prepared)
+    return {
+        "draft_plan": None,
+        "travel_plan": None,
+        "review_status": "failed",
+        "error": error.code,
+    }
+
+
+def _prepare_planning_inputs(
+    state: TravelPlanState,
+) -> _PlanningInputs | TravelPlanState:
+    """Restore validated domain data once for either Planner implementation."""
 
     if state.get("next_agent") != "planner":
         return {
@@ -166,18 +262,39 @@ def planner_node(state: TravelPlanState) -> TravelPlanState:
         if kind_value in reported_error_kinds and kind_value not in unavailable:
             unavailable.append(kind_value)
 
+    return _PlanningInputs(
+        requirements=requirements,
+        revision_policy=revision_policy,
+        flights=flights,
+        hotels=hotels,
+        attractions=attractions,
+        weather=weather,
+        route=route,
+        unavailable=unavailable,
+    )
+
+
+def _assemble_plan(
+    state: TravelPlanState,
+    inputs: _PlanningInputs,
+    *,
+    grounded_selection: planning_service.GroundedPlanningSelection | None = None,
+) -> TravelPlanState:
+    """Call the single existing assembly service and map only stable failures."""
+
     try:
         travel_plan: TravelPlan = planning_service.assemble_travel_plan_from_results(
-            requirements=requirements,
-            flight_options=flights,
-            hotel_options=hotels,
-            attractions=attractions,
-            weather=weather,
-            route=route,
+            requirements=inputs.requirements,
+            flight_options=inputs.flights,
+            hotel_options=inputs.hotels,
+            attractions=inputs.attractions,
+            weather=inputs.weather,
+            route=inputs.route,
             retrieved_context=state.get("retrieved_context", []),
             remembered_preferences=state.get("remembered_preferences", []),
-            unavailable_searches=unavailable,
-            revision_policy=revision_policy,
+            unavailable_searches=inputs.unavailable,
+            revision_policy=inputs.revision_policy,
+            grounded_selection=grounded_selection,
         )
     except planning_service.PlanningServiceError:
         error_code = (
@@ -193,7 +310,7 @@ def planner_node(state: TravelPlanState) -> TravelPlanState:
     return {
         "draft_plan": dump_model_json(travel_plan),
         "travel_plan": None,
-        "applied_feedback": revision_policy.applied_feedback(),
+        "applied_feedback": inputs.revision_policy.applied_feedback(),
         "error": None,
     }
 

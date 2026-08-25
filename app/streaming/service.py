@@ -281,6 +281,16 @@ def _safe_stream_error(error: str | None) -> tuple[str, str]:
         "finalization_failed": "The final travel plan could not be validated.",
         "graph_recursion_limit_reached": "The graph reached its configured safety limit.",
         "stream_graph_failed": "The planning stream could not complete.",
+        "llm_not_configured": "The configured reasoning provider is unavailable.",
+        "llm_invalid_base_url": "The configured reasoning endpoint is not allowed.",
+        "llm_timeout": "The reasoning provider timed out.",
+        "llm_rate_limited": "The reasoning provider is temporarily rate limited.",
+        "llm_authentication_failed": "The reasoning provider rejected its credentials.",
+        "llm_transport_error": "The reasoning provider could not be reached.",
+        "llm_invalid_json": "The reasoning provider returned invalid structured data.",
+        "llm_schema_validation_failed": "The reasoning response failed schema validation.",
+        "llm_grounding_violation": "The reasoning response selected unknown travel data.",
+        "llm_provider_error": "The reasoning provider could not complete the request.",
     }
     if error in messages:
         return error, messages[error]

@@ -17,6 +17,7 @@ from app.core.resources import (
     create_app_resources,
 )
 from app.graphs.graph import TravelPlanningGraph, build_travel_planning_graph
+from app.llm.runtime import create_llm_runtime
 from app.observability.instrumentation import InstrumentedAdvancedRetriever
 from app.observability.logging import configure_logging, log_event, shutdown_logging
 from app.observability.metrics import MetricsRuntime
@@ -43,6 +44,8 @@ def create_lifespan(
                 "application_starting", "Application resources are starting.", component="app"
             )
             resources = await resource_factory(settings)
+            if resources.llm_runtime is None:
+                resources.llm_runtime = create_llm_runtime(settings, runtime_metrics)
             app.state.resources = resources
             advanced_retriever = None
             if resources.rag_runtime is not None:
@@ -66,6 +69,9 @@ def create_lifespan(
                 review_max_rounds=settings.review_max_rounds,
                 metrics=runtime_metrics,
                 backend_mode=backend_mode,
+                reasoning_mode=settings.agent_reasoning_mode,
+                llm_provider=resources.llm_runtime.provider,
+                allow_deterministic_fallback=settings.qwen_allow_deterministic_fallback,
             )
             try:
                 persistence_context = persistence_factory(
@@ -74,6 +80,9 @@ def create_lifespan(
                     resources.search_backend,
                     runtime_metrics,
                     backend_mode,
+                    settings.agent_reasoning_mode,
+                    resources.llm_runtime.provider,
+                    settings.qwen_allow_deterministic_fallback,
                 )
             except TypeError:
                 # Retain the narrow P07 test seam for a legacy two-argument failure double.

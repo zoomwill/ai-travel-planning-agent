@@ -35,11 +35,17 @@ _PUBLIC_FIELDS = (
     "error_code",
     "thread_ref",
     "user_ref",
+    "role",
+    "model",
+    "input_token_count",
+    "output_token_count",
+    "fallback",
 )
 _SECRET_PATTERNS = (
     re.compile(r"(?i)(authorization|cookie)\s*[:=]\s*[^\r\n]*"),
     re.compile(r"(?i)(token|api[_-]?key|password)\s*[:=]\s*\S+"),
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"),
+    re.compile(r"(?i)\bsk-(?:ws-)?[A-Za-z0-9_-]{8,}\b"),
     re.compile(r"(?i)(postgres(?:ql)?(?:\+[A-Za-z0-9_.-]+)?|redis)://[^\s]+"),
 )
 

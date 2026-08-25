@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
@@ -21,6 +21,7 @@ from app.core.resources import AppResources
 from app.graphs.graph import build_travel_planning_graph
 from app.graphs.nodes.retriever import ContextRetriever
 from app.infrastructure.chroma import ChromaClientProvider
+from app.llm.protocol import StructuredLLMProvider
 from app.observability.metrics import MetricsRuntime
 from app.rag.advanced_retriever import AdvancedRetriever
 from app.review.reviewer import PlanReviewer
@@ -142,6 +143,9 @@ def make_in_memory_persistence_factory(
         configured_search_backend: SearchBackend | None = None,
         metrics: MetricsRuntime | None = None,
         backend_mode: str = "direct",
+        reasoning_mode: Literal["deterministic", "qwen"] = "deterministic",
+        llm_provider: StructuredLLMProvider | None = None,
+        allow_deterministic_fallback: bool = False,
     ) -> AsyncIterator[PersistenceResources]:
         checkpointer = InMemorySaver(serde=create_strict_serializer())
         store = InMemoryStore()
@@ -156,6 +160,9 @@ def make_in_memory_persistence_factory(
             store=store,
             metrics=metrics,
             backend_mode=backend_mode,
+            reasoning_mode=reasoning_mode,
+            llm_provider=llm_provider,
+            allow_deterministic_fallback=allow_deterministic_fallback,
         )
         yield PersistenceResources(
             checkpointer=checkpointer,
