@@ -2,7 +2,7 @@
   "id": null,
   "uid": "travel-planner-overview",
   "title": "Travel Planner Observability Overview",
-  "tags": ["travel-planner", "p13"],
+  "tags": ["travel-planner", "p13", "p15"],
   "timezone": "browser",
   "schemaVersion": 42,
   "version": 1,
@@ -168,6 +168,31 @@
       "gridPos": {"x": 18, "y": 35, "w": 6, "h": 7},
       "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
       "targets": [{"refId": "A", "expr": "sum by (direction) (rate(travel_planner_llm_tokens_total[$__rate_interval]))", "legendFormat": "{{direction}}"}]
+    },
+    {
+      "id": 25, "type": "timeseries", "title": "25. Intake turns",
+      "gridPos": {"x": 0, "y": 42, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (status) (rate(travel_planner_intake_turns_total[$__rate_interval]))", "legendFormat": "{{status}}"}]
+    },
+    {
+      "id": 26, "type": "timeseries", "title": "26. Intake clarifications",
+      "gridPos": {"x": 6, "y": 42, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (field) (rate(travel_planner_intake_clarifications_total[$__rate_interval]))", "legendFormat": "{{field}}"}]
+    },
+    {
+      "id": 27, "type": "timeseries", "title": "27. Intake confirmation outcomes",
+      "gridPos": {"x": 12, "y": 42, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (status) (increase(travel_planner_intake_confirmations_total[$__rate_interval]))", "legendFormat": "{{status}}"}]
+    },
+    {
+      "id": 28, "type": "timeseries", "title": "28. Intake LLM p95 duration",
+      "gridPos": {"x": 18, "y": 42, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(travel_planner_llm_request_duration_seconds_bucket{role=\"intake\"}[$__rate_interval])))", "legendFormat": "intake"}]
     }
   ]
 }

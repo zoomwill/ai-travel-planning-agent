@@ -187,6 +187,11 @@ LLM error rate, LLM p95 duration, and provider-reported token usage. Histogram p
 `histogram_quantile()` over rate-of-buckets grouped by
 `le`. Empty data remains empty rather than being presented as success.
 
+P15 appends four more panels without changing the earlier 24: intake turns by bounded outcome,
+the first deterministic clarification field, explicit confirmation outcomes, and the p95 duration
+of LLM requests whose fixed role is `intake`. User, thread, message, destination, and preference
+values are never metric labels.
+
 ## Tests and full E2E
 
 Ordinary offline checks need no Docker or network:

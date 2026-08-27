@@ -2,13 +2,16 @@
 
 from collections.abc import Sequence
 
+from app.intake.models import TripRequirementPatch
 from app.llm.errors import LLMError
 from app.llm.models import (
+    IntakePromptInput,
     PlannerPromptInput,
     QwenDayAttractionSelection,
     QwenPlanDecision,
     QwenPlanReview,
     QwenSmokeResponse,
+    QwenTripRequirementExtraction,
     ReviewerPromptInput,
     StructuredLLMResult,
 )
@@ -22,11 +25,14 @@ class FakeStructuredLLMProvider:
         *,
         plan_decisions: Sequence[QwenPlanDecision | LLMError] = (),
         reviews: Sequence[QwenPlanReview | LLMError] = (),
+        intake_extractions: Sequence[QwenTripRequirementExtraction | LLMError] = (),
     ) -> None:
         self._plan_decisions = list(plan_decisions)
         self._reviews = list(reviews)
+        self._intake_extractions = list(intake_extractions)
         self.plan_inputs: list[PlannerPromptInput] = []
         self.review_inputs: list[ReviewerPromptInput] = []
+        self.intake_inputs: list[IntakePromptInput] = []
         self.close_calls = 0
 
     async def plan(
@@ -89,6 +95,21 @@ class FakeStructuredLLMProvider:
                 suggested_changes=[],
             )
         return StructuredLLMResult(value=review, model="fake-qwen")
+
+    async def extract_trip_requirements(
+        self,
+        prompt_input: IntakePromptInput,
+    ) -> StructuredLLMResult[QwenTripRequirementExtraction]:
+        """Return one scripted patch without parsing production message strings."""
+
+        self.intake_inputs.append(prompt_input)
+        if self._intake_extractions:
+            extraction = self._intake_extractions.pop(0)
+            if isinstance(extraction, LLMError):
+                raise extraction
+        else:
+            extraction = QwenTripRequirementExtraction(patch=TripRequirementPatch())
+        return StructuredLLMResult(value=extraction, model="fake-qwen")
 
     async def smoke_test(self) -> StructuredLLMResult[QwenSmokeResponse]:
         """Return a local result without pretending a real API was contacted."""

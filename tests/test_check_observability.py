@@ -32,16 +32,16 @@ def test_prometheus_target_requires_named_target_to_be_up() -> None:
     assert failed.passed is False
 
 
-def test_dashboard_requires_fixed_uid_and_twenty_four_panels() -> None:
+def test_dashboard_requires_fixed_uid_and_twenty_eight_panels() -> None:
     valid = {
         "dashboard": {
             "uid": "travel-planner-overview",
-            "panels": [{"id": index} for index in range(1, 25)],
+            "panels": [{"id": index} for index in range(1, 29)],
         }
     }
     result = check_grafana_dashboard("http://grafana", lambda _: (200, json.dumps(valid)))
     assert result.passed is True
-    assert "24 panels" in result.detail
+    assert "28 panels" in result.detail
 
     valid["dashboard"]["panels"].pop()
     failed = check_grafana_dashboard("http://grafana", lambda _: (200, json.dumps(valid)))

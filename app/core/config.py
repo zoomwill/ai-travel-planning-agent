@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     graph_recursion_limit: int = Field(default=50, ge=1)
     sse_heartbeat_seconds: float = Field(default=10.0, gt=0, le=14.0)
     sse_queue_maxsize: int = Field(default=64, ge=1, le=1024)
+    intake_history_limit: int = Field(default=30, ge=2, le=100)
 
     agent_reasoning_mode: Literal["deterministic", "qwen"] = "deterministic"
     qwen_model: str = Field(

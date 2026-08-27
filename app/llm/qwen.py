@@ -22,16 +22,18 @@ from pydantic import ValidationError
 
 from app.llm.errors import LLMError
 from app.llm.models import (
+    IntakePromptInput,
     LLMModel,
     LLMRole,
     PlannerPromptInput,
     QwenPlanDecision,
     QwenPlanReview,
     QwenSmokeResponse,
+    QwenTripRequirementExtraction,
     ReviewerPromptInput,
     StructuredLLMResult,
 )
-from app.llm.prompts import planner_messages, reviewer_messages, smoke_messages
+from app.llm.prompts import intake_messages, planner_messages, reviewer_messages, smoke_messages
 from app.observability.logging import log_event
 from app.observability.metrics import LLM_ROLES, LLM_STATUSES, MetricsRuntime, normalize_label
 
@@ -83,6 +85,18 @@ class QwenStructuredLLMProvider:
             role="reviewer",
             messages=reviewer_messages(prompt_input),
             output_model=QwenPlanReview,
+        )
+
+    async def extract_trip_requirements(
+        self,
+        prompt_input: IntakePromptInput,
+    ) -> StructuredLLMResult[QwenTripRequirementExtraction]:
+        """Extract one bounded semantic patch from the current redacted message."""
+
+        return await self._generate(
+            role="intake",
+            messages=intake_messages(prompt_input),
+            output_model=QwenTripRequirementExtraction,
         )
 
     async def smoke_test(self) -> StructuredLLMResult[QwenSmokeResponse]:

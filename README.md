@@ -273,3 +273,54 @@ P14 does **not** add real-time flight/hotel inventory, live weather or maps, boo
 frontend, authentication, or production deployment. Search and MCP data remain invented local
 fixtures, the RAG corpus remains a local demo, and Qwen supplies reasoning rather than travel
 facts. Verify all prices, availability, hours, weather, and transport information independently.
+
+## Conversational planning
+
+Phase P15 adds a recoverable natural-language intake before the unchanged planning graph. It needs
+configured Qwen mode for semantic extraction; ordinary complete-JSON planning remains
+deterministic by default. Read [`docs/22_CONVERSATIONAL_INTAKE.md`](docs/22_CONVERSATIONAL_INTAKE.md)
+for the state, patch, correction, security, persistence, and cost boundaries.
+
+Send bounded messages until the response reports `awaiting_confirmation`:
+
+```bash
+curl --noproxy '*' --silent --show-error \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "user_id":"local-chat-user",
+    "message":"From Cleveland to Tokyo starting 2027-10-12 for five days."
+  }' \
+  'http://127.0.0.1:8000/api/v1/agents/threads/local-chat/conversation/messages'
+
+curl --noproxy '*' --silent --show-error \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "user_id":"local-chat-user",
+    "message":"One traveler with a total budget of 3000 USD; photography, no crowds."
+  }' \
+  'http://127.0.0.1:8000/api/v1/agents/threads/local-chat/conversation/messages'
+
+curl --noproxy '*' --silent --show-error \
+  'http://127.0.0.1:8000/api/v1/agents/threads/local-chat/conversation?user_id=local-chat-user'
+```
+
+Copy the current 64-character `draft_fingerprint`; confirmation is intentionally a separate POST:
+
+```bash
+curl --noproxy '*' -N \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "user_id":"local-chat-user",
+    "draft_fingerprint":"copy-current-fingerprint-here",
+    "remember_preferences":[]
+  }' \
+  'http://127.0.0.1:8000/api/v1/agents/threads/local-chat/conversation/confirm/stream'
+```
+
+The stream is P12 workflow progress, not model-token output. Native browser `EventSource` cannot
+send this POST body; use a POST-capable streaming client. Reset only this intake with
+`POST /api/v1/agents/threads/local-chat/conversation/reset` and body
+`{"user_id":"local-chat-user"}`. Never put an API key in a conversation message.

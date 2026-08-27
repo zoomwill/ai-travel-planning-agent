@@ -6,6 +6,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.types import ASGIApp
 
 from app.api.routes.agent_plans import router as agent_plans_router
+from app.api.routes.conversation import router as conversation_router
 from app.api.routes.health import router as health_router
 from app.api.routes.llm import router as llm_router
 from app.api.routes.mcp import router as mcp_router
@@ -106,6 +107,7 @@ def create_app(
         )
 
     application.include_router(agent_plans_router)
+    application.include_router(conversation_router)
     application.include_router(health_router)
     application.include_router(llm_router)
     application.include_router(mcp_router)

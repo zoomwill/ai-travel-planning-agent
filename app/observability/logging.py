@@ -40,6 +40,8 @@ _PUBLIC_FIELDS = (
     "input_token_count",
     "output_token_count",
     "fallback",
+    "turn_count",
+    "missing_field_count",
 )
 _SECRET_PATTERNS = (
     re.compile(r"(?i)(authorization|cookie)\s*[:=]\s*[^\r\n]*"),

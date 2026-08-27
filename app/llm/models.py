@@ -1,13 +1,15 @@
 """Strict prompt and response models for bounded Qwen reasoning."""
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Annotated, Generic, Literal, TypeAlias, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.intake.models import PartialTripRequirements, TripRequirementPatch
 from app.review.models import ReviewIssueCode
 
-LLMRole: TypeAlias = Literal["planner", "reviewer", "query_expander"]
+LLMRole: TypeAlias = Literal["planner", "reviewer", "query_expander", "intake"]
 PreferenceText: TypeAlias = Annotated[str, Field(min_length=1, max_length=300)]
 AmenityText: TypeAlias = Annotated[str, Field(min_length=1, max_length=120)]
 ContextText: TypeAlias = Annotated[str, Field(min_length=1, max_length=1000)]
@@ -29,6 +31,20 @@ class LLMModel(BaseModel):
         str_strip_whitespace=True,
         validate_default=True,
     )
+
+
+class IntakePromptInput(LLMModel):
+    """Bounded incremental extraction input with no conversation history or secrets."""
+
+    current_date: date
+    current_draft: PartialTripRequirements
+    user_message: str = Field(min_length=1, max_length=4000)
+
+
+class QwenTripRequirementExtraction(LLMModel):
+    """The only structured output Qwen may return for conversational intake."""
+
+    patch: TripRequirementPatch
 
 
 class TripPromptSnapshot(LLMModel):

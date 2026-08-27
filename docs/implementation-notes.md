@@ -710,3 +710,50 @@ Record deviations from source pseudocode and important engineering decisions her
   tests skipped and emitted no LLM request logs. The final separately enabled real Qwen
   Planner/Reviewer invariant passed once in 50.94 seconds. That duration is only this command's
   wall-clock observation, not a latency benchmark or production claim.
+
+### 2026-08-26 — Phase P15 conversational intake
+
+- Source intent: Add recoverable multi-turn requirement collection before the existing planning
+  graph. The implementation uses the existing PostgreSQL Store namespace
+  `(user_id, "trip_intake")` with `thread_id` as key; partial data never enters the LangGraph
+  checkpointer, and a successful intake stores only a small plan-availability reference.
+- Domain-model finding: The current `TripRequirements` model requires origin, destination,
+  start/end dates, budget, and travelers. Currency has a real `CNY` default and preferences have an
+  empty-list default, so P15 derives its required-field list from Pydantic rather than treating the
+  source prompt's possible currency list as authoritative.
+- Date/API choice: Intake dates use the project's inclusive itinerary semantics. The intake-only
+  `duration_days` range is 1–366 to match P14's bounded per-day structured output. Ambiguous month
+  input remains missing; exact date arithmetic and final domain validation stay in application
+  code rather than trusting model arithmetic.
+- Provider choice: `StructuredLLMProvider` gains incremental extraction, but the P14 lifespan still
+  owns exactly one `AsyncOpenAI` client and one bounded retry layer. Model Studio JSON-object mode
+  does not enforce the local Pydantic schema, so duplicate-key/NaN/infinity rejection, strict
+  numeric types, unknown-field rejection, Pydantic validation, and prompt boundaries remain local.
+- Consent and execution: Qwen may only produce `TripRequirementPatch`; it cannot confirm, plan,
+  use tools, or write memory. Canonical effective draft JSON is SHA-256 fingerprinted. Both confirm
+  endpoints require the current fingerprint and reuse the existing non-stream execution or P12
+  `TravelPlanStream`; no second planning graph or SSE mapper was introduced.
+- Security and persistence: Only the current draft, current UTC date, and current redacted message
+  reach Qwen. Credential-shaped message text is redacted before both prompt forwarding and bounded
+  user-visible history persistence. Logs and metrics exclude raw message, draft, preferences,
+  prompt, completion, user ID, and thread ID.
+- Deliberate limitation: LangGraph Store does not expose compare-and-swap for this key. P15 returns
+  an incrementing version and blocks stale confirmation by fingerprint, but callers must serialize
+  mutations for the same user/thread. No Redis distributed lock was added. Deterministic runtime
+  returns `conversational_intake_requires_llm` for conversation messages while every older complete-
+  JSON deterministic endpoint remains available.
+- Actual P15 verification: The focused offline intake suite passed 50 tests. Ruff formatting,
+  linting, strict application mypy, and `git diff --check` passed; the full ordinary suite passed
+  464 tests with 12 explicitly gated skips. With local containers healthy, the real PostgreSQL
+  restart/user-isolation intake test passed, followed by the full deterministic infrastructure
+  suite with 474 passes and 2 independently gated skips. The observability checker saw all 14 key
+  metric families, an UP Prometheus target, and the provisioned 28-panel dashboard; Prometheus's
+  HTTP API parsed each of the four new P15 panel expressions successfully.
+- Real-provider acceptance: The single separately gated P15 test passed once. It used two real
+  intake turns followed by one explicit confirmation stream, then asserted strict extraction,
+  zero planning before confirmation, five fixed search categories, grounded Planner/Reviewer
+  output, one successful `plan_completed`, readable checkpoint state, and persisted `planned`
+  intake state. Pytest's wall-clock result was 54.17 seconds; this is one acceptance observation,
+  not a latency, quality, cost, or production-readiness claim. The test did not print the key,
+  prompt, or completion and its `finally` block removed its UUID-scoped checkpoint, intake, and
+  preference records.

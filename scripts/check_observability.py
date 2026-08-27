@@ -23,6 +23,10 @@ _METRIC_NAMES = (
     "travel_planner_llm_requests_total",
     "travel_planner_llm_request_duration_seconds",
     "travel_planner_llm_tokens_total",
+    "travel_planner_intake_turns_total",
+    "travel_planner_intake_turn_duration_seconds",
+    "travel_planner_intake_confirmations_total",
+    "travel_planner_intake_clarifications_total",
 )
 
 
@@ -153,7 +157,7 @@ def check_grafana_datasource(grafana_url: str, fetcher: Fetcher = fetch) -> Chec
 
 
 def check_grafana_dashboard(grafana_url: str, fetcher: Fetcher = fetch) -> CheckResult:
-    """Verify the provisioned dashboard UID and its required 24 panels."""
+    """Verify the provisioned dashboard UID and its required 28 panels."""
 
     uid = "travel-planner-overview"
     error, payload = _json_result(
@@ -163,7 +167,7 @@ def check_grafana_dashboard(grafana_url: str, fetcher: Fetcher = fetch) -> Check
         return error
     dashboard = payload.get("dashboard", {}) if isinstance(payload, dict) else {}
     panels = dashboard.get("panels", []) if isinstance(dashboard, dict) else []
-    valid = dashboard.get("uid") == uid and len(panels) >= 24
+    valid = dashboard.get("uid") == uid and len(panels) >= 28
     return CheckResult(
         "Grafana dashboard",
         valid,

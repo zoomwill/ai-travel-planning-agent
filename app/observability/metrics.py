@@ -52,9 +52,26 @@ FINALIZATION_REASONS = frozenset(
     {"threshold_reached", "max_review_rounds_reached", "reviewer_failure", "unknown"}
 )
 SSE_TERMINAL_STATUSES = frozenset({"success", "error", "disconnect", "cancelled"})
-LLM_ROLES = frozenset({"planner", "reviewer", "query_expander"})
+LLM_ROLES = frozenset({"planner", "reviewer", "query_expander", "intake"})
 LLM_STATUSES = frozenset({"success", "error", "timeout", "invalid_response", "fallback"})
 LLM_TOKEN_DIRECTIONS = frozenset({"input", "output"})
+INTAKE_TURN_STATUSES = frozenset({"clarification", "ready", "error"})
+INTAKE_CONFIRMATION_STATUSES = frozenset(
+    {"success", "stale", "invalid", "planning_error", "disconnect"}
+)
+REQUIREMENT_FIELDS = frozenset(
+    {
+        "origin",
+        "destination",
+        "start_date",
+        "end_date",
+        "duration_days",
+        "budget",
+        "currency",
+        "travelers",
+        "preferences",
+    }
+)
 
 
 def normalize_label(value: object, allowed: frozenset[str]) -> str:
@@ -93,6 +110,10 @@ class MetricsRuntime:
     llm_requests: Counter
     llm_duration: Histogram
     llm_tokens: Counter
+    intake_turns: Counter
+    intake_turn_duration: Histogram
+    intake_confirmations: Counter
+    intake_clarifications: Counter
     dependency_ready: Gauge
 
     @classmethod
@@ -257,6 +278,31 @@ class MetricsRuntime:
                 "travel_planner_llm_tokens",
                 "Provider-reported LLM tokens; missing usage is never estimated.",
                 ("direction",),
+                registry=owned_registry,
+            ),
+            intake_turns=Counter(
+                "travel_planner_intake_turns",
+                "Conversational intake turn outcomes.",
+                ("status",),
+                registry=owned_registry,
+            ),
+            intake_turn_duration=Histogram(
+                "travel_planner_intake_turn_duration_seconds",
+                "Conversational intake turn duration.",
+                ("status",),
+                buckets=workflow_buckets,
+                registry=owned_registry,
+            ),
+            intake_confirmations=Counter(
+                "travel_planner_intake_confirmations",
+                "Explicit conversational planning confirmation outcomes.",
+                ("status",),
+                registry=owned_registry,
+            ),
+            intake_clarifications=Counter(
+                "travel_planner_intake_clarifications",
+                "First deterministic clarification field requested.",
+                ("field",),
                 registry=owned_registry,
             ),
             dependency_ready=Gauge(

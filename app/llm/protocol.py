@@ -3,10 +3,12 @@
 from typing import Protocol
 
 from app.llm.models import (
+    IntakePromptInput,
     PlannerPromptInput,
     QwenPlanDecision,
     QwenPlanReview,
     QwenSmokeResponse,
+    QwenTripRequirementExtraction,
     ReviewerPromptInput,
     StructuredLLMResult,
 )
@@ -26,6 +28,12 @@ class StructuredLLMProvider(Protocol):
         prompt_input: ReviewerPromptInput,
     ) -> StructuredLLMResult[QwenPlanReview]:
         """Assess a plan without controlling graph loop bounds."""
+
+    async def extract_trip_requirements(
+        self,
+        prompt_input: IntakePromptInput,
+    ) -> StructuredLLMResult[QwenTripRequirementExtraction]:
+        """Extract one semantic patch without confirming or planning."""
 
     async def smoke_test(self) -> StructuredLLMResult[QwenSmokeResponse]:
         """Run the explicit minimal paid connectivity check."""

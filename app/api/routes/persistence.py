@@ -161,7 +161,7 @@ def _snapshot_checkpoint_id(snapshot: StateSnapshot) -> str:
     return str(checkpoint_id)
 
 
-async def _prepare_plan_stream(
+async def prepare_thread_plan_stream(
     thread_id: str,
     payload: ThreadPlanRequest,
     request: Request,
@@ -214,6 +214,10 @@ async def _prepare_plan_stream(
     )
 
 
+# Preserve the P12 dependency-override seam while exposing a named P15 reuse point.
+_prepare_plan_stream = prepare_thread_plan_stream
+
+
 @router.post(
     "/api/v1/agents/threads/{thread_id}/plans/stream",
     response_class=EventSourceResponse,
@@ -246,6 +250,16 @@ async def create_thread_plan(
     request: Request,
 ) -> ThreadPlanResponse:
     """Run one plan with durable checkpoints and explicit user memory."""
+
+    return await execute_thread_plan(thread_id, payload, request)
+
+
+async def execute_thread_plan(
+    thread_id: str,
+    payload: ThreadPlanRequest,
+    request: Request,
+) -> ThreadPlanResponse:
+    """Execute the exact persistent non-stream workflow for direct or confirmed intake."""
 
     validated_thread_id = _validate_thread_id(thread_id)
     validated_user_id = _validate_user_id(payload.user_id)
