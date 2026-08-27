@@ -14,6 +14,15 @@ build/
 .idea/
 .vscode/
 
+# P16 frontend dependencies, local configuration, and generated reports.
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
 # P10 creates these locally from committed knowledge fixtures.
 data/generated/
 .model-cache/

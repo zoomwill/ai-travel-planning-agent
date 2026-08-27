@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --color-brand-50: #eef2ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { min-width: 320px; background: #f6f7fb; }
+  body { margin: 0; min-width: 320px; min-height: 100vh; color: #0f172a; background: radial-gradient(circle at 55% -20%, #e0e7ff 0, transparent 33%), #f6f7fb; }
+  button, textarea, input { font: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .55; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+}
+
+@layer components {
+  .app-shell { @apply min-h-screen lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]; }
+  .sidebar-wrap { @apply fixed inset-y-0 left-0 z-40 w-64 -translate-x-full transition-transform duration-200 lg:static lg:translate-x-0; }
+  .sidebar-wrap-open { @apply translate-x-0; }
+  .sidebar-overlay { @apply pointer-events-none fixed inset-0 z-30 bg-slate-950/30 opacity-0 transition-opacity lg:hidden; }
+  .sidebar-overlay-open { @apply pointer-events-auto opacity-100; }
+  .sidebar { @apply flex h-full min-h-screen flex-col border-r border-slate-200 bg-white px-4 py-6; }
+  .workspace { @apply flex min-h-screen min-w-0 flex-col; }
+  .app-header { @apply sticky top-0 z-20 flex h-[4.5rem] items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur sm:px-6; }
+  .main-grid { @apply mx-auto grid w-full max-w-[108rem] flex-1 grid-cols-1 gap-4 p-3 sm:p-5 xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5; }
+  .center-column { @apply min-w-0 space-y-3; }
+  .detail-column { @apply min-w-0; }
+  .app-footer { @apply flex items-center justify-center gap-2 border-t border-slate-200 px-4 py-3 text-center text-xs text-slate-400; }
+  .brand-mark { @apply grid h-10 w-10 place-items-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-200; }
+  .button-primary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700; }
+  .button-secondary { @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50; }
+  .button-ghost { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800; }
+  .icon-button { @apply grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800; }
+  .recent-trip { @apply block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50 hover:text-slate-950; }
+  .recent-trip-active { @apply bg-indigo-50 text-indigo-900 hover:bg-indigo-50; }
+  .backend-status { @apply inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold; }
+  .backend-connected { @apply border-emerald-200 bg-emerald-50 text-emerald-700; }
+  .backend-unavailable { @apply border-rose-200 bg-rose-50 text-rose-700; }
+  .backend-checking { @apply border-slate-200 bg-white text-slate-500; }
+  .panel-heading { @apply flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-7; }
+  .eyebrow { @apply text-xs font-bold uppercase tracking-[.14em] text-slate-400; }
+  .status-chip { @apply rounded-full bg-slate-100 px-2.5 py-1 text-[.68rem] font-bold uppercase tracking-wider text-slate-500; }
+  .chat-panel { @apply flex min-h-[calc(100vh-8.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm; }
+  .message-scroll { @apply min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7; }
+  .welcome-state { @apply flex min-h-[28rem] flex-col items-center justify-center py-10 text-center; }
+  .welcome-icon { @apply grid h-14 w-14 place-items-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100; }
+  .example-prompt { @apply rounded-xl border border-slate-200 bg-white p-3 text-left text-sm leading-5 text-slate-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-900; }
+  .message-row { @apply mb-5 flex max-w-[88%] items-start gap-2.5; }
+  .message-user { @apply ml-auto flex-row-reverse; }
+  .message-avatar { @apply grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500; }
+  .message-user .message-avatar { @apply bg-indigo-100 text-indigo-700; }
+  .message-bubble { @apply rounded-2xl rounded-tl-md bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-700; overflow-wrap: anywhere; }
+  .message-user .message-bubble { @apply rounded-tl-2xl rounded-tr-md bg-indigo-600 text-white; }
+  .message-time { @apply mt-1 block px-1 text-[.68rem] text-slate-400; }
+  .message-user .message-time { @apply text-right; }
+  .composer { @apply flex flex-col gap-3 border-t border-slate-100 bg-white px-4 py-4 sm:px-7; }
+  .composer textarea { @apply min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:outline-none; }
+  .send-button { @apply grid h-10 w-10 place-items-center rounded-xl bg-indigo-600 text-white transition hover:bg-indigo-700; }
+  .error-banner { @apply flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700 shadow-sm; }
+  .mobile-detail { @apply overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm; }
+  .mobile-detail-toggle { @apply flex w-full items-center gap-2 px-5 py-4 text-left font-semibold text-slate-800 xl:hidden; }
+  .detail-content { @apply hidden p-5 xl:block; }
+  .mobile-detail-open .detail-content { @apply block; }
+  .trip-draft, .progress-panel { @apply min-w-0; }
+  .draft-count { @apply rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700; }
+  .draft-route { @apply mt-5 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700; }
+  .route-line { @apply h-px min-w-3 flex-1 bg-slate-300; }
+  .draft-grid { @apply mt-5 grid grid-cols-2 gap-x-4 gap-y-5; }
+  .draft-grid dt { @apply flex items-center gap-1.5 text-xs text-slate-400; }
+  .draft-grid dd { @apply mt-1 text-sm font-semibold leading-5 text-slate-800; }
+  .draft-label { @apply text-xs font-bold uppercase tracking-wider text-slate-400; }
+  .preference-chip { @apply rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700; }
+  .requirement-row { @apply flex items-center gap-2 text-sm; }
+  .confirm-card { @apply mt-6 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4; }
+  .remember-row { @apply mt-4 flex cursor-pointer items-start gap-2.5 text-sm leading-5 text-slate-600; }
+  .remember-row input { @apply mt-0.5 h-4 w-4 rounded border-slate-300 accent-indigo-600; }
+  .progress-row { @apply flex items-center gap-3 text-sm font-medium text-slate-700; }
+  .search-card { @apply mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4; }
+  .search-row { @apply flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-600; }
+  .review-card { @apply mt-5 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4; }
+  .score-track { @apply h-1.5 overflow-hidden rounded-full bg-indigo-100; }
+  .score-track span { @apply block h-full rounded-full bg-indigo-500; }
+  .developer-details { @apply mt-5 border-t border-slate-100 pt-4 text-xs text-slate-400; }
+  .developer-details summary { @apply cursor-pointer font-semibold text-slate-500; }
+  .developer-details p { @apply mt-2 break-words leading-5; }
+  .view-switcher { @apply inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm; }
+  .view-switcher button { @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500; }
+  .view-switcher button.active { @apply bg-indigo-50 text-indigo-700; }
+  .results-view { @apply overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-7; }
+  .results-hero { @apply flex flex-col justify-between gap-5 rounded-2xl bg-gradient-to-br from-indigo-700 to-slate-900 p-6 sm:flex-row sm:items-start sm:p-8; }
+  .hero-detail { @apply inline-flex items-center gap-2; }
+  .demo-badge { @apply self-start rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/20; }
+  .budget-warning { @apply mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900; }
+  .result-card-grid { @apply mt-6 grid gap-4 md:grid-cols-2; }
+  .result-card { @apply flex items-start gap-4 rounded-2xl border border-slate-200 p-5; }
+  .result-card-icon { @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-700; }
+  .day-card { @apply flex gap-4 rounded-2xl border border-slate-200 p-4 sm:p-5; }
+  .day-number { @apply flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold leading-5 text-white; }
+  .day-number span { @apply text-[.65rem] font-semibold uppercase tracking-wider text-indigo-200; }
+  .activity-list { @apply mt-4 space-y-2.5 border-l border-slate-200 pl-4; }
+  .activity-list li { @apply flex items-start gap-2 text-sm leading-6 text-slate-600; }
+  .activity-list svg { @apply mt-1 shrink-0 text-indigo-400; }
+  .review-summary { @apply mt-7 flex flex-col justify-between gap-5 rounded-2xl bg-slate-50 p-5 sm:flex-row sm:items-center; }
+  .review-score { @apply flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-full bg-white text-indigo-700 shadow-sm ring-4 ring-indigo-100; }
+  .review-score span { @apply text-2xl font-bold leading-none; }
+  .review-score small { @apply mt-1 text-[.65rem] text-slate-400; }
+  .demo-disclosure { @apply mt-7 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-400; }
+}
+
+@media (min-width: 1280px) { .mobile-detail { overflow: visible; } }
+
+@media (max-width: 767px) {
+  .main-grid { padding: .5rem; }
+  .chat-panel { min-height: calc(100vh - 9rem); border-radius: 1rem; }
+  .message-row { max-width: 94%; }
+  .detail-column { order: -1; }
+  .results-view { border-radius: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

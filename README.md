@@ -26,6 +26,46 @@ The screenshots describe a rich architecture and include many code-like examples
 - A complete Codex prompt pack.
 - Acceptance tests and a debugging playbook.
 - An `AGENTS.md` file that tells Codex how to work safely in this repository.
+- A responsive React chat interface for the complete conversation-to-itinerary journey.
+
+## Web UI
+
+Phase P16 adds a browser application at `http://127.0.0.1:5173`. The browser talks only to
+FastAPI through Vite's local proxy. It never receives the Qwen API key and never connects directly
+to PostgreSQL, Redis, Chroma, MCP, or Qwen.
+
+For a complete conversational demo, configure the backend's opt-in Qwen mode as described in
+[`docs/21_QWEN_LLM_INTEGRATION.md`](docs/21_QWEN_LLM_INTEGRATION.md). Then use three terminals.
+
+Terminal A — start the local infrastructure:
+
+```bash
+docker compose up -d --wait --wait-timeout 120
+uv run python scripts/setup_langgraph_persistence.py
+```
+
+Terminal B — start FastAPI:
+
+```bash
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+Terminal C — install the locked frontend dependencies and start Vite:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. Stop FastAPI and Vite with Control+C. Stop containers while retaining
+their data with `docker compose stop`; do not use `docker compose down -v` unless you deliberately
+intend to erase all local named-volume data.
+
+The browser identity is a random ID stored locally for this demo; it is not authentication. Travel
+options are deterministic sample data, not live inventory, and the app cannot book or take payment.
+See [`docs/23_WEB_CHAT_FRONTEND.md`](docs/23_WEB_CHAT_FRONTEND.md) for architecture, tests,
+security boundaries, troubleshooting, and the full beginner workflow.
 
 ## First action
 

@@ -757,3 +757,30 @@ Record deviations from source pseudocode and important engineering decisions her
   not a latency, quality, cost, or production-readiness claim. The test did not print the key,
   prompt, or completion and its `finally` block removed its UUID-scoped checkpoint, intake, and
   preference records.
+
+### 2026-08-27 — Phase P16 web chat frontend
+
+- Source intent: Turn P15 intake and P12 workflow streaming into one browser journey without a
+  second backend. The implementation is a React/TypeScript Vite SPA under `frontend/`; all browser
+  requests remain relative and Vite proxies them to FastAPI. FastAPI CORS, intake, graph, RAG, MCP,
+  persistence, and SSE code are unchanged.
+- Current API choice: The official Tailwind v4 integration uses `@tailwindcss/vite` plus one CSS
+  import instead of the older source-style PostCSS/config pseudocode. React 19.2, Vite 8.2, and
+  Tailwind 4.3 were the current stable lines verified from official documentation and npm. The
+  installed Node 24 runtime satisfies Vite 8. TypeScript is intentionally pinned to the current
+  6.0 line because `typescript-eslint` declares support below 6.1; blindly taking TypeScript 7
+  would exceed that peer range.
+- Streaming choice: Browser `EventSource` cannot send P15's required POST body. A small fetch/
+  ReadableStream parser handles arbitrary UTF-8 chunks, LF/CRLF, multi-line data, and final flush.
+  The existing `: ping` remains a transport comment, never enters React state, and consumes no
+  business sequence. Known payloads pass strict Zod validation; unknown future event names are
+  ignored.
+- Persistence/security boundary: localStorage holds only a random demo user UUID, a current thread
+  UUID, and at most ten thread metadata records. It never holds messages, plans, model output,
+  preferences, keys, or backend environment data. Reload reads P15 conversation and existing safe
+  thread state; it never reruns the graph. No frontend source contains a Qwen key, DSN, bearer
+  secret, or direct infrastructure/model call.
+- Deliberate limitations: This is local demonstration UX with no authentication. Travel options
+  remain deterministic sample data, there is no booking or payment, SSE has no replay, and the
+  stream reports workflow progress rather than real model tokens. Real browser/Qwen acceptance is
+  separately gated and excluded from ordinary tests.
