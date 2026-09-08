@@ -1,8 +1,11 @@
 import type { z } from "zod";
 
 import { AppError, isAbortError } from "../lib/errors";
+import type { AccessTokenProvider } from "../auth/context";
+import { readFrontendConfig } from "../auth/config";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const config = readFrontendConfig(import.meta.env);
+const API_BASE_URL = config.apiBase;
 const DEFAULT_TIMEOUT_MS = 45_000;
 
 interface RequestOptions extends Omit<RequestInit, "body" | "signal"> {
@@ -10,6 +13,7 @@ interface RequestOptions extends Omit<RequestInit, "body" | "signal"> {
   signal?: AbortSignal | null | undefined;
   timeoutMs?: number;
   retryGet?: boolean;
+  getAccessToken?: AccessTokenProvider | undefined;
 }
 
 interface SafeErrorBody {
@@ -34,6 +38,9 @@ function requestSignal(external: AbortSignal | null | undefined, timeoutMs: numb
 }
 
 function userMessageForStatus(status: number, code: string): string {
+  if (status === 401) return "Your session has expired. Sign in again.";
+  if (status === 403) return "You do not have access to this resource.";
+  if (status === 429) return "Daily demo capacity reached. Please try again later.";
   if (status === 409 && code === "stale_draft_fingerprint") {
     return "Your trip details changed. Please review the latest version before confirming.";
   }
@@ -68,10 +75,19 @@ export async function errorFromResponse(response: Response): Promise<AppError> {
 }
 
 async function fetchOnce(path: string, options: RequestOptions): Promise<Response> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, body, retryGet: _retryGet, ...requestOptions } = options;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, body, retryGet: _retryGet, getAccessToken, ...requestOptions } = options;
   void _retryGet;
   const { signal, cleanup } = requestSignal(requestOptions.signal, timeoutMs);
   try {
+    const protectedPath = path.startsWith("/api/");
+    if (protectedPath && config.mode === "auth0" && !getAccessToken) {
+      throw new AppError("Your session has expired. Sign in again.", { code: "authentication_required", status: 401 });
+    }
+    const token = protectedPath && getAccessToken ? await getAccessToken() : undefined;
+    if (token !== undefined) {
+      requestOptions.signal?.throwIfAborted();
+      signal.throwIfAborted();
+    }
     return await fetch(`${API_BASE_URL}${path}`, {
       ...requestOptions,
       signal,
@@ -79,10 +95,12 @@ async function fetchOnce(path: string, options: RequestOptions): Promise<Respons
         Accept: "application/json",
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         ...requestOptions.headers,
+        ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (error) {
+    if (error instanceof AppError) throw error;
     if (isAbortError(error) || requestOptions.signal?.aborted === true) throw error;
     if (signal.aborted) {
       throw new AppError("The request timed out. Please try again.", {
@@ -113,7 +131,7 @@ export async function requestJson<T>(
       response = await fetchOnce(path, options);
       break;
     } catch (error) {
-      if (attempt + 1 === attempts || isAbortError(error)) throw error;
+      if (attempt + 1 === attempts || isAbortError(error) || (error instanceof AppError && error.status !== undefined)) throw error;
     }
   }
   if (response === undefined) {
@@ -146,6 +164,7 @@ export async function requestEventStream(
   path: string,
   body: unknown,
   signal: AbortSignal,
+  getAccessToken?: AccessTokenProvider,
 ): Promise<Response> {
   const response = await fetchOnce(path, {
     method: "POST",
@@ -153,6 +172,7 @@ export async function requestEventStream(
     signal,
     timeoutMs: 10 * 60_000,
     retryGet: false,
+    getAccessToken,
     headers: { Accept: "text/event-stream" },
   });
   if (!response.ok) throw await errorFromResponse(response);

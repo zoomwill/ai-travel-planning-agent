@@ -7,6 +7,7 @@ import {
   sendConversationMessage,
 } from "../api/conversation";
 import { AppError, isAbortError, toAppError } from "../lib/errors";
+import { useAuthSession } from "../auth/context";
 import { appReducer, initialAppState, type AppAction, type AppState } from "../state/appReducer";
 
 /** Restore and mutate only the current backend-owned conversation. */
@@ -22,6 +23,7 @@ export function useConversation(
   reset: () => Promise<void>;
 } {
   const [state, dispatch] = useReducer(appReducer, initialAppState);
+  const getAccessToken = useAuthSession()?.getAccessToken;
   const activeRequest = useRef<AbortController | null>(null);
 
   const reload = useCallback(async () => {
@@ -30,11 +32,11 @@ export function useConversation(
     activeRequest.current = controller;
     dispatch({ type: "LOAD_START" });
     try {
-      const conversation = await getConversation(threadId, userId, controller.signal);
+      const conversation = await getConversation(threadId, userId, controller.signal, getAccessToken);
       dispatch({ type: "CONVERSATION_RECEIVED", conversation });
       if (conversation.draft.destination !== null) updateTitle(conversation.draft.destination);
       if (conversation.plan_available) {
-        const snapshot = await getThreadState(threadId, controller.signal);
+        const snapshot = await getThreadState(threadId, controller.signal, getAccessToken);
         if (snapshot.travel_plan !== null) dispatch({ type: "PLAN_RESTORED", plan: snapshot.travel_plan });
       }
     } catch (error) {
@@ -45,7 +47,7 @@ export function useConversation(
     } finally {
       if (activeRequest.current === controller) activeRequest.current = null;
     }
-  }, [threadId, updateTitle, userId]);
+  }, [threadId, updateTitle, userId, getAccessToken]);
 
   useEffect(() => {
     void reload();
@@ -64,6 +66,7 @@ export function useConversation(
           threadId,
           { user_id: userId, message: trimmed, start_new_trip: false },
           controller.signal,
+          getAccessToken,
         );
         dispatch({ type: "CONVERSATION_RECEIVED", conversation });
         if (conversation.draft.destination !== null) updateTitle(conversation.draft.destination);
@@ -75,7 +78,7 @@ export function useConversation(
         if (activeRequest.current === controller) activeRequest.current = null;
       }
     },
-    [threadId, updateTitle, userId],
+    [threadId, updateTitle, userId, getAccessToken],
   );
 
   const reset = useCallback(async () => {
@@ -86,7 +89,7 @@ export function useConversation(
         dispatch({ type: "CLEAR_TRIP" });
         return;
       }
-      const conversation = await resetConversation(threadId, userId, controller.signal);
+      const conversation = await resetConversation(threadId, userId, controller.signal, getAccessToken);
       dispatch({ type: "CLEAR_TRIP" });
       dispatch({ type: "CONVERSATION_RECEIVED", conversation });
       updateTitle("New trip");
@@ -95,7 +98,7 @@ export function useConversation(
     } finally {
       if (activeRequest.current === controller) activeRequest.current = null;
     }
-  }, [state.conversation, threadId, updateTitle, userId]);
+  }, [state.conversation, threadId, updateTitle, userId, getAccessToken]);
 
   return { state, dispatch, reload, send, reset };
 }

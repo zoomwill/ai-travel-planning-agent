@@ -1,8 +1,10 @@
 """FastAPI application entry point."""
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp
 
 from app.api.routes.agent_plans import router as agent_plans_router
@@ -15,6 +17,8 @@ from app.api.routes.plans import router as plans_router
 from app.api.routes.rag import router as rag_router
 from app.api.routes.readiness import router as readiness_router
 from app.api.routes.travel_data import router as travel_data_router
+from app.auth.dependencies import AuthMetrics, authorize_request
+from app.auth.headers import SecurityHeadersMiddleware
 from app.core.config import Settings, get_settings
 from app.core.lifespan import create_lifespan
 from app.core.persistence import (
@@ -36,9 +40,20 @@ class ObservedFastAPI(FastAPI):
     def build_middleware_stack(self) -> ASGIApp:
         """Observe completed 500 responses while preserving exception re-raise."""
 
-        return ObservabilityMiddleware(
+        observed = ObservabilityMiddleware(
             super().build_middleware_stack(),
             metrics=self._observability_metrics,
+        )
+        settings: Settings = self.state.settings
+        return SecurityHeadersMiddleware(
+            CORSMiddleware(
+                observed,
+                allow_origins=settings.cors_allowed_origins,
+                allow_credentials=False,
+                allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+                allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+                expose_headers=["X-Request-ID", "Retry-After"],
+            )
         )
 
 
@@ -64,6 +79,9 @@ def create_app(
     application = ObservedFastAPI(
         title="AI Intelligent Travel Planning System",
         version="0.1.0",
+        docs_url="/docs" if resolved_settings.api_docs_enabled else None,
+        redoc_url="/redoc" if resolved_settings.api_docs_enabled else None,
+        openapi_url="/openapi.json" if resolved_settings.api_docs_enabled else None,
         lifespan=create_lifespan(
             resolved_settings,
             resource_factory,
@@ -75,12 +93,16 @@ def create_app(
     application._observability_metrics = metrics
     application.state.settings = resolved_settings
     application.state.metrics = metrics
+    application.state.auth_metrics = AuthMetrics(metrics.registry)
     application.state.travel_planning_graph = resolved_travel_graph
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=resolved_settings.trusted_hosts)
 
     @application.get("/metrics", include_in_schema=False)
     async def prometheus_metrics() -> Response:
         """Expose this process's in-memory registry without probing dependencies."""
 
+        if not resolved_settings.metrics_enabled:
+            return Response(status_code=404)
         return Response(
             content=generate_latest(metrics.registry),
             headers={"Content-Type": CONTENT_TYPE_LATEST},
@@ -107,16 +129,19 @@ def create_app(
             },
         )
 
-    application.include_router(agent_plans_router)
-    application.include_router(conversation_router)
     application.include_router(health_router)
-    application.include_router(llm_router)
-    application.include_router(mcp_router)
     application.include_router(readiness_router)
-    application.include_router(plans_router)
-    application.include_router(persistence_router)
-    application.include_router(rag_router)
-    application.include_router(travel_data_router)
+    for protected_router in (
+        agent_plans_router,
+        conversation_router,
+        llm_router,
+        mcp_router,
+        plans_router,
+        persistence_router,
+        rag_router,
+        travel_data_router,
+    ):
+        application.include_router(protected_router, dependencies=[Depends(authorize_request)])
     return application
 
 

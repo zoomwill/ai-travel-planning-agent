@@ -4,6 +4,7 @@ import { AppError } from "../lib/errors";
 import { SseParser } from "../lib/sse";
 import { requestEventStream } from "./client";
 import { conversationStreamPath } from "./conversation";
+import type { AccessTokenProvider } from "../auth/context";
 
 function parseBusinessEvent(eventName: string, data: string): StreamBusinessEvent | null {
   if (!knownStreamEventTypes.has(eventName)) return null;
@@ -37,9 +38,10 @@ export async function streamConfirmedConversation(
   request: ConfirmRequest,
   signal: AbortSignal,
   onEvent: (event: StreamBusinessEvent) => void,
+  getAccessToken?: AccessTokenProvider,
 ): Promise<void> {
   const body = confirmRequestSchema.parse(request);
-  const response = await requestEventStream(conversationStreamPath(threadId), body, signal);
+  const response = await requestEventStream(conversationStreamPath(threadId), body, signal, getAccessToken);
   const reader = response.body!.getReader();
   let previousSequence = 0;
   let terminal: "plan_completed" | "error" | null = null;

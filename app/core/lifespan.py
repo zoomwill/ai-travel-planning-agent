@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from fastapi import FastAPI
 
+from app.auth.tokens import TokenVerifier
 from app.core.config import Settings
 from app.core.persistence import (
     PersistenceFactory,
@@ -39,6 +40,8 @@ def create_lifespan(
         runtime_metrics = metrics or app.state.metrics
         log_handler = configure_logging(settings.log_level)
         resources = None
+        verifier = TokenVerifier(settings) if settings.auth_mode == "auth0" else None
+        app.state.token_verifier = verifier
         try:
             log_event(
                 "application_starting", "Application resources are starting.", component="app"
@@ -51,6 +54,10 @@ def create_lifespan(
             if resources.travel_runtime is not None:
                 resources.travel_runtime.set_metrics(runtime_metrics)
             app.state.resources = resources
+            if settings.app_env == "production" and (
+                resources.rag_runtime is None or not resources.rag_runtime.indexed
+            ):
+                raise RuntimeError("deployment RAG prerequisites are not ready")
             advanced_retriever = None
             if resources.rag_runtime is not None:
                 advanced_retriever = InstrumentedAdvancedRetriever(
@@ -100,8 +107,12 @@ def create_lifespan(
                     del app.state.persistence
         finally:
             try:
-                if resources is not None:
-                    await close_app_resources(resources)
+                try:
+                    if verifier is not None:
+                        await verifier.aclose()
+                finally:
+                    if resources is not None:
+                        await close_app_resources(resources)
             finally:
                 if hasattr(app.state, "travel_planning_graph"):
                     del app.state.travel_planning_graph

@@ -16,7 +16,7 @@ PreferenceText = Annotated[str, Field(min_length=1, max_length=200)]
 class ThreadPlanRequest(BaseModel):
     """A trip request plus explicit long-term-memory instructions."""
 
-    user_id: str
+    user_id: str | None = None
     requirements: TripRequirements
     remember_preferences: list[PreferenceText] = Field(
         default_factory=list,

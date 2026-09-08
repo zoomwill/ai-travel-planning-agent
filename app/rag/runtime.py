@@ -97,6 +97,7 @@ async def create_advanced_rag_runtime(
             device=settings.rag_embedding_device,
             normalize_embeddings=settings.rag_embedding_normalize,
             local_files_only=True,
+            revision=settings.rag_embedding_revision,
         )
         if embedding.dimensions != manifest.metadata.embedding_dimension:
             raise ValueError("prepared model dimension does not match manifest")

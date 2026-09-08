@@ -5,6 +5,7 @@ import { streamConfirmedConversation } from "../api/streaming";
 import type { ConversationResponse } from "../api/types";
 import { AppError, isAbortError, toAppError } from "../lib/errors";
 import type { AppAction } from "../state/appReducer";
+import { useAuthSession } from "../auth/context";
 
 /** Own exactly one active confirmation stream and its cancellation cleanup. */
 export function usePlanningStream(
@@ -16,16 +17,20 @@ export function usePlanningStream(
   stopPlanning: () => Promise<void>;
 } {
   const controllerRef = useRef<AbortController | null>(null);
+  const getAccessToken = useAuthSession()?.getAccessToken;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const activePromiseRef = useRef<Promise<void> | null>(null);
 
   const resync = useCallback(async () => {
+    if (!mounted.current) return;
     try {
-      const conversation = await getConversation(threadId, userId);
+      const conversation = await getConversation(threadId, userId, undefined, getAccessToken);
       dispatch({ type: "CONVERSATION_RECEIVED", conversation });
     } catch {
       // The original bounded error remains the useful user-facing result.
     }
-  }, [dispatch, threadId, userId]);
+  }, [dispatch, threadId, userId, getAccessToken]);
 
   const startPlanning = useCallback(
     (conversation: ConversationResponse, remember: boolean): Promise<void> => {
@@ -52,6 +57,7 @@ export function usePlanningStream(
                 });
               }
             },
+            getAccessToken,
           );
           await resync();
           if (terminalError !== null) dispatch({ type: "SHOW_ERROR", error: terminalError });
@@ -74,7 +80,7 @@ export function usePlanningStream(
       activePromiseRef.current = activePromise;
       return activePromise;
     },
-    [dispatch, resync, threadId, userId],
+    [dispatch, resync, threadId, userId, getAccessToken],
   );
 
   const stopPlanning = useCallback(async () => {

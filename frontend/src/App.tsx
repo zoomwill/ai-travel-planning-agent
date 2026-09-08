@@ -11,11 +11,13 @@ import { TripDraftPanel } from "./components/trip/TripDraftPanel";
 import { useConversation } from "./hooks/useConversation";
 import { useLocalIdentity } from "./hooks/useLocalIdentity";
 import { usePlanningStream } from "./hooks/usePlanningStream";
+import { useAuthSession } from "./auth/context";
 
 type BackendStatus = "checking" | "connected" | "unavailable";
 
 /** Assemble the P16 browser experience around existing P15/P12 endpoints. */
 export default function App() {
+  const authSession = useAuthSession();
   const identity = useLocalIdentity();
   const { state, dispatch, reload, send, reset } = useConversation(
     identity.userId,
@@ -147,7 +149,7 @@ export default function App() {
           </aside>
         </main>
 
-        <footer className="app-footer"><CircleHelp aria-hidden="true" size={14} /> Local demonstration — no authentication or live booking inventory.</footer>
+        <footer className="app-footer"><CircleHelp aria-hidden="true" size={14} /> {authSession ? "Authenticated demo — test/sandbox travel data, no booking." : "Local demonstration — no authentication or live booking inventory."}</footer>
       </div>
     </div>
   );

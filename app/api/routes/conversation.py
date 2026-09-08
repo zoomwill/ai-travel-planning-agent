@@ -13,10 +13,10 @@ from app.api.routes.persistence import (
     _get_persistence,
     _PreparedPlanStream,
     _validate_thread_id,
-    _validate_user_id,
     execute_thread_plan,
     prepare_thread_plan_stream,
 )
+from app.auth.dependencies import request_user_id
 from app.intake.errors import (
     IntakeConflictError,
     IntakeError,
@@ -110,7 +110,7 @@ async def create_conversation_message(
     """Merge one natural-language turn without running the planning graph."""
 
     validated_thread_id = _validate_thread_id(thread_id)
-    validated_user_id = _validate_user_id(payload.user_id)
+    validated_user_id = request_user_id(request, payload.user_id)
     try:
         state = await _service(request).process_message(
             user_id=validated_user_id,
@@ -130,12 +130,12 @@ async def create_conversation_message(
 async def get_conversation(
     thread_id: str,
     request: Request,
-    user_id: str = Query(min_length=1, max_length=64),
+    user_id: str | None = Query(default=None, min_length=1, max_length=64),
 ) -> ConversationResponse:
     """Return the safe persisted conversation for one explicit user namespace."""
 
     validated_thread_id = _validate_thread_id(thread_id)
-    validated_user_id = _validate_user_id(user_id)
+    validated_user_id = request_user_id(request, user_id)
     try:
         state = await _service(request).get_state(
             user_id=validated_user_id,
@@ -158,7 +158,7 @@ async def reset_conversation(
     """Reset only one user's intake while retaining graph history and long-term memory."""
 
     validated_thread_id = _validate_thread_id(thread_id)
-    validated_user_id = _validate_user_id(payload.user_id)
+    validated_user_id = request_user_id(request, payload.user_id)
     try:
         state = await _service(request).reset(
             user_id=validated_user_id,
@@ -181,7 +181,7 @@ async def confirm_conversation(
     """Run the existing persistent planning graph once after explicit current consent."""
 
     validated_thread_id = _validate_thread_id(thread_id)
-    validated_user_id = _validate_user_id(payload.user_id)
+    validated_user_id = request_user_id(request, payload.user_id)
     service = _service(request)
     try:
         _, requirements_value = await service.begin_confirmation(
@@ -243,7 +243,7 @@ async def _prepare_confirmation_stream(
     """Validate consent, Store, and backend readiness before opening SSE."""
 
     validated_thread_id = _validate_thread_id(thread_id)
-    validated_user_id = _validate_user_id(payload.user_id)
+    validated_user_id = request_user_id(request, payload.user_id)
     service = _service(request)
     try:
         _, requirements_value = await service.begin_confirmation(

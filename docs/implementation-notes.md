@@ -944,3 +944,63 @@ Record deviations from source pseudocode and important engineering decisions her
   during P17 despite the user's attempts. Test/sandbox success is not production inventory or
   production readiness. Real mixed MCP, another real conversational browser path, and live Grafana
   visualization were not additionally run; they remain NOT VERIFIED in this final review.
+
+### 2026-09-08 — P18 authentication and deployment implementation
+
+- Git gate: initial clean `main` at committed P17 `aa5d8aa`; authorized fetch/fast-forward of
+  two README-only commits reached clean baseline `31007f8`. P18 changes remain unstaged and
+  uncommitted. No push, paid provisioning, booking, P19 or history rewrite.
+- Source intent: replace demo client identity with authenticated users while preserving the
+  established graph, strict MessagePack, provider facts, memory and POST SSE semantics. Actual
+  implementation uses Auth0 React SDK 2.24.1 Universal Login/PKCE and PyJWT 2.13.0 RS256 API
+  access-token verification. An application-owned async HTTP/JWKS pool avoids blocking the
+  event loop with synchronous remote-key fetching. Configured issuer only, exact audience,
+  bounded cache/response/keys, total deadline, cooldown and cancellation are tested offline.
+- Auth0 principal uses a stable issuer/subject pseudonymous hash. Every legacy user_id is
+  ignored for authorization; all four graph invoke/stream/state/history paths scope the public
+  thread ID internally. Conversation and preference Store namespaces use the same verified
+  user reference. Preference responses project the internal source key back to its public ID.
+- Cost guard uses atomic Redis Lua fixed UTC windows: per-user intake and planning caps plus
+  global daily planning AND intake caps. The additional global intake cap closes multi-account
+  intake-only model spend not covered by a plan-only cap. All protected POSTs except reset are
+  conservatively admitted (RAG search/mock plan included); rejected/failed attempts are not
+  refunded. Limits are request counts, not monetary guarantees. Redis failure returns 503.
+- Frontend uses SDK memory token caching and injected token getter for JSON/POST SSE. Account
+  pointers are locally hash-scoped. Logout unmounts/aborts and clears only current local metadata;
+  backend data remains. 401/403/429 never silently replay mutations. Real Auth0 login is pending.
+- Production validates Auth0, HTTPS exact origins, trusted hosts, backend credentials and
+  disabled docs/metrics. Headers do not buffer SSE or introduce an untested CSP. Bounded auth
+  metrics include denied scoped resources without looking up another user's ownership.
+- Source intent: a repeatable deployable RAG service, not runtime downloads or throwaway state.
+  Official Python/uv digests are pinned; Linux Torch 2.13.0 uses the documented explicit CPU
+  index, because initial Linux resolution included unnecessary CUDA packages. Existing macOS
+  source remains unchanged. The same multilingual MiniLM model is prepared at revision
+  `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`; runtime model loading is local-only. No model swap.
+- Railway volumes are mounted at runtime, not pre-deploy time. Therefore Python start performs
+  advisory-locked official LangGraph setup and add-only RAG reconciliation before Uvicorn
+  serves /ready on validated PORT. It never resets Chroma, flushes Redis, drops tables or
+  deletes stale vectors. A differing existing index requires manual migration review.
+- Cloud configuration is one API replica/worker, separate private PostgreSQL/Redis/Chroma,
+  Chroma `/data` volume, and Vercel's frontend directory. MCP cloud topology is intentionally
+  not generalized. The account-side Wait for CI switch is documented; no deployment token is
+  placed in the contents:read GitHub workflow. Workflow actions are pinned to verified SHAs.
+- Review hardening includes a total JWKS deadline/cancel regression, closing all resources even
+  if verifier.close fails, safe default image auth, and logout/token acquisition cancellation.
+  Local container checker re-reads its random host port after restart, enforces a wall-clock
+  readiness deadline, and checks non-killed exit plus application resource shutdown.
+- Executed final offline checks: Ruff/format PASS (379 files), mypy PASS (169 app files),
+  auth/deployment 93 passed; full pytest 714 passed/17 skipped. Ordinary Docker integration
+  11 passed/1 skipped/719 deselected. Frontend locked npm install, lint, types and builds PASS;
+  Vitest 77 passed/14 files, mock browser E2E 2 passed/2 real cases skipped. JS chunk-size warning
+  remains non-blocking. No Auth0/Qwen/Duffel/LiteAPI real call was made during P18 validation.
+- Final local image `fdb295bc36fc` built successfully, 796,042,548 bytes, runtime UID/GID10001.
+  Local health/ready/RAG/demo Agent/restart/SIGTERM checks PASS; temporary API container removed,
+  all named volumes retained. Docker credential helper stalled initially; an empty temporary
+  CLI config used the existing Desktop daemon without changing saved credentials.
+- Secret/artifact checks found no forbidden Git candidate artifacts or frontend credential
+  matches. Three unchanged earlier negative-security test literals were inspected redacted.
+  `.env` remains ignored, never printed/staged. These are bounded scans, not a security guarantee.
+- Actual hosted CI, Auth0 login/two-user login, Railway/Vercel deployment, deployed HTTPS/SSE and
+  cloud persistence/private exposure are **NOT VERIFIED**. See `P18_ACCEPTANCE_REPORT.md` for
+  all 101 report items and `25_AUTH_AND_DEPLOYMENT.md` for exact beginner setup steps.
+  **P18 implementation ready; cloud/auth configuration pending.**

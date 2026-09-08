@@ -77,7 +77,7 @@ describe("useConversation", () => {
     const { result } = renderHook(() => useConversation("user", "thread", updateTitle));
     await waitFor(() => expect(result.current.state.conversation).toEqual(ready));
     await act(() => result.current.reset());
-    expect(mockedReset).toHaveBeenCalledWith("thread", "user", expect.any(AbortSignal));
+    expect(mockedReset).toHaveBeenCalledWith("thread", "user", expect.any(AbortSignal), undefined);
     expect(result.current.state.conversation?.draft.destination).toBeNull();
     expect(updateTitle).toHaveBeenLastCalledWith("New trip");
   });

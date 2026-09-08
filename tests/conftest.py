@@ -24,6 +24,10 @@ def forbid_ungated_provider_internet(monkeypatch):
         gate = gates.get(request.url.host)
         if request.url.host.endswith(".aliyuncs.com"):
             gate = "RUN_LLM_INTEGRATION_TESTS"
+        if request.url.path.endswith("/.well-known/jwks.json") or request.url.host.endswith(
+            ".auth0.com"
+        ):
+            gate = "RUN_AUTH0_INTEGRATION_TESTS"
         if gate is not None and os.environ.get(gate) != "1":
             raise AssertionError("Real external transport requires its explicit test gate")
 

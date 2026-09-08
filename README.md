@@ -26,6 +26,12 @@ mixed-provider Qwen/SSE workflow were verified on 2026-09-08.
 See [the P17 acceptance report](docs/P17_ACCEPTANCE_REPORT.md) for actual results and limitations.
 Duffel Stays is optional and NOT VERIFIED: account access was not granted during P17.
 
+P18 adds Auth0 access-token verification, user-scoped resources, Redis request caps, an
+authenticated frontend, and Docker/Railway/Vercel/GitHub Actions configuration. Local execution
+and outstanding account-side gates are recorded in the [P18 acceptance report](docs/P18_ACCEPTANCE_REPORT.md).
+**P18 implementation ready; cloud/auth configuration pending.** No public deployment or
+GitHub-hosted CI success is claimed.
+
 | Area | Current state |
 | --- | --- |
 | Backend | FastAPI + LangGraph |
@@ -45,7 +51,7 @@ Duffel Stays is optional and NOT VERIFIED: account access was not granted during
 | Frontend tests | Vitest + React Testing Library + Playwright |
 | External travel search | Duffel Flights + LiteAPI Hotels; optional Duffel Stays; search-only |
 | Default travel data | Deterministic demo data |
-| Authentication | **Not implemented yet** |
+| Authentication | Auth0 mode implemented; real login/cloud acceptance pending; local demo mode retained |
 | Booking / payment | **Not implemented yet** |
 
 The application remains demo-first. `TRAVEL_DATA_MODE=external` uses per-kind selectors, defaulting
@@ -627,9 +633,13 @@ Qwen / LangGraph / PostgreSQL / Redis / Chroma / MCP
 
 ### Local browser identity
 
-Because authentication has not yet been implemented, the frontend generates a local UUID and stores it in `localStorage`.
+In `VITE_AUTH_MODE=demo`, the frontend generates a local UUID and stores it in `localStorage`.
 
 This is **not authentication**.
+
+In `auth0` mode the SDK keeps tokens in memory, and the backend derives ownership from a
+verified API access token. Local thread pointers are account-scoped; client IDs never authorize
+access. See [authentication and deployment](docs/25_AUTH_AND_DEPLOYMENT.md).
 
 The browser stores only lightweight local metadata such as:
 
@@ -1262,9 +1272,12 @@ High-cardinality values such as the following are never used as metric labels:
 
 ## Browser
 
-The browser uses a local UUID only as a demo identity.
+In demo mode, the browser uses a local UUID only as a demo identity.
 
 It is not authentication or authorization.
+
+Auth0 mode instead requires a verified RS256 API token and scopes checkpoints, conversations
+and preferences by its pseudonymous principal. Real Auth0 browser login remains NOT VERIFIED.
 
 ---
 
@@ -1322,11 +1335,9 @@ The following capabilities are intentionally not implemented yet:
 - live attraction availability,
 - booking,
 - payments,
-- authentication,
-- authorization,
-- production TLS,
-- multi-user production identity,
-- public deployment,
+- verified real Auth0 login and cloud two-user acceptance (offline isolation tests exist),
+- verified production TLS and public deployment,
+- observed GitHub-hosted CI (workflow and local equivalent checks exist),
 - Last-Event-ID SSE replay,
 - true model-token streaming,
 - distributed locking for concurrent mutation of the same thread.
@@ -1359,6 +1370,7 @@ The project was built incrementally so that each major architectural capability 
 | P15 | Conversational intake | Multi-turn natural-language requirements |
 | P16 | Web chat frontend | Complete browser conversation-to-itinerary UX |
 | P17 | Multi-provider external travel data | Duffel Flights + LiteAPI Hotels, provenance, no booking |
+| P18 | Authentication and deployment implementation | Local verification; real Auth0/CI/cloud acceptance pending |
 
 ---
 
@@ -1411,6 +1423,8 @@ These commits document the incremental engineering history of this project.
 | Conversational intake | [`docs/22_CONVERSATIONAL_INTAKE.md`](docs/22_CONVERSATIONAL_INTAKE.md) |
 | React web frontend | [`docs/23_WEB_CHAT_FRONTEND.md`](docs/23_WEB_CHAT_FRONTEND.md) |
 | External travel data | [`docs/24_EXTERNAL_TRAVEL_DATA.md`](docs/24_EXTERNAL_TRAVEL_DATA.md) |
+| Authentication and deployment | [`docs/25_AUTH_AND_DEPLOYMENT.md`](docs/25_AUTH_AND_DEPLOYMENT.md) |
+| P18 executed acceptance and pending gates | [`docs/P18_ACCEPTANCE_REPORT.md`](docs/P18_ACCEPTANCE_REPORT.md) |
 | RAG evaluation | [`docs/evaluation/P10_RAG_EVALUATION.md`](docs/evaluation/P10_RAG_EVALUATION.md) |
 
 ---
@@ -1419,16 +1433,11 @@ These commits document the incremental engineering history of this project.
 
 ## P18 — Authentication & deployment
 
-Potential scope:
-
-- real user authentication,
-- authorization,
-- protected preference/thread resources,
-- TLS,
-- production environment configuration,
-- deployment,
-- secret management,
-- rate limiting.
+Implemented: Auth0 mode, protected user/thread resources, Redis admission, production
+configuration validation, authenticated JSON/POST SSE, container bootstrap, deployment artifacts
+and an offline GitHub Actions workflow. Real Auth0 login, observed CI, Railway/Vercel HTTPS
+deployment and persistence acceptance remain pending. Follow the exact manual checklist in
+[`docs/25_AUTH_AND_DEPLOYMENT.md`](docs/25_AUTH_AND_DEPLOYMENT.md); do not treat this as P18 complete.
 
 ## P19 — Portfolio polish
 
@@ -1437,7 +1446,6 @@ Potential scope:
 - architecture diagram assets,
 - real application screenshots,
 - short demo GIF/video,
-- GitHub Actions CI,
 - README visual polish,
 - public-repository security audit,
 - release notes,

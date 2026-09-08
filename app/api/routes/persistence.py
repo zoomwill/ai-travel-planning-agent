@@ -12,6 +12,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.errors import GraphRecursionError
 from langgraph.types import StateSnapshot
 
+from app.auth.dependencies import checkpoint_thread_id, record_resource_denied, request_user_id
 from app.core.persistence import PersistenceResources
 from app.domain.models import TravelPlan
 from app.graphs.context import TravelRuntimeContext
@@ -95,11 +96,13 @@ def _get_persistence(request: Request) -> PersistenceResources:
 def _thread_config(
     thread_id: str,
     *,
+    request: Request | None = None,
     recursion_limit: int | None = None,
 ) -> RunnableConfig:
     """Build the LangGraph configurable section used as the checkpoint key."""
 
-    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+    internal_id = checkpoint_thread_id(request, thread_id) if request is not None else thread_id
+    config: RunnableConfig = {"configurable": {"thread_id": internal_id}}
     if recursion_limit is not None:
         config["recursion_limit"] = recursion_limit
     return config
@@ -187,7 +190,7 @@ async def prepare_thread_plan_stream(
     """Validate the complete persistent request before opening an SSE response."""
 
     validated_thread_id = _validate_thread_id(thread_id)
-    validated_user_id = _validate_user_id(payload.user_id)
+    validated_user_id = request_user_id(request, payload.user_id)
     persistence = _get_persistence(request)
     settings = request.app.state.settings
     _validate_external_search(payload, request)
@@ -221,6 +224,7 @@ async def prepare_thread_plan_stream(
             initial_state=initial_state,
             config=_thread_config(
                 validated_thread_id,
+                request=request,
                 recursion_limit=settings.graph_recursion_limit,
             ),
             context=context,
@@ -281,7 +285,7 @@ async def execute_thread_plan(
     """Execute the exact persistent non-stream workflow for direct or confirmed intake."""
 
     validated_thread_id = _validate_thread_id(thread_id)
-    validated_user_id = _validate_user_id(payload.user_id)
+    validated_user_id = request_user_id(request, payload.user_id)
     persistence = _get_persistence(request)
     _validate_external_search(payload, request)
     initial_state = _make_initial_state(payload)
@@ -296,6 +300,7 @@ async def execute_thread_plan(
                 initial_state,
                 config=_thread_config(
                     validated_thread_id,
+                    request=request,
                     recursion_limit=request.app.state.settings.graph_recursion_limit,
                 ),
                 context=context,
@@ -404,7 +409,9 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
     validated_thread_id = _validate_thread_id(thread_id)
     persistence = _get_persistence(request)
     try:
-        snapshot = await persistence.graph.aget_state(_thread_config(validated_thread_id))
+        snapshot = await persistence.graph.aget_state(
+            _thread_config(validated_thread_id, request=request)
+        )
     except Exception:
         _raise_api_error(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -413,6 +420,7 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
         )
     values = cast(dict[str, Any], snapshot.values)
     if not values:
+        record_resource_denied(request)
         _raise_api_error(
             status.HTTP_404_NOT_FOUND,
             "checkpoint_unavailable",
@@ -464,7 +472,7 @@ async def get_thread_history(
     checkpoints: list[ThreadHistoryItem] = []
     try:
         async for snapshot in persistence.graph.aget_state_history(
-            _thread_config(validated_thread_id),
+            _thread_config(validated_thread_id, request=request),
             limit=limit,
         ):
             values = cast(dict[str, Any], snapshot.values)
@@ -507,10 +515,19 @@ def _validated_review(value: object) -> PlanReview | None:
 async def get_user_preferences(user_id: str, request: Request) -> list[PreferenceMemory]:
     """List only the preferences in the requested user's namespace."""
 
-    validated_user_id = _validate_user_id(user_id)
+    validated_user_id = request_user_id(request, user_id)
     persistence = _get_persistence(request)
     try:
-        return await list_user_preferences(persistence.store, validated_user_id)
+        memories = await list_user_preferences(persistence.store, validated_user_id)
+        if request.app.state.settings.auth_mode == "auth0":
+            prefix = f"auth0:{validated_user_id}:"
+            return [
+                memory.model_copy(
+                    update={"source_thread_id": memory.source_thread_id.removeprefix(prefix)}
+                )
+                for memory in memories
+            ]
+        return memories
     except Exception:
         _raise_api_error(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -530,7 +547,7 @@ async def delete_preference(
 ) -> Response:
     """Delete one preference without touching the rest of the namespace."""
 
-    validated_user_id = _validate_user_id(user_id)
+    validated_user_id = request_user_id(request, user_id)
     persistence = _get_persistence(request)
     try:
         deleted = await delete_user_preference(
@@ -545,9 +562,24 @@ async def delete_preference(
             "The preference could not be deleted.",
         )
     if not deleted:
+        record_resource_denied(request)
         _raise_api_error(
             status.HTTP_404_NOT_FOUND,
             "preference_not_found",
             "The requested preference does not exist for this user.",
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/api/v1/me/preferences", response_model=list[PreferenceMemory])
+async def get_my_preferences(request: Request) -> list[PreferenceMemory]:
+    """List the verified principal's preferences without a client identity field."""
+
+    return await get_user_preferences(request_user_id(request, None), request)
+
+
+@router.delete("/api/v1/me/preferences/{preference_id}", status_code=204)
+async def delete_my_preference(preference_id: str, request: Request) -> Response:
+    """Delete only inside the verified principal's preference namespace."""
+
+    return await delete_preference(request_user_id(request, None), preference_id, request)

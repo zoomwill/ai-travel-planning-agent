@@ -1,8 +1,12 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
+import { readFrontendConfig } from "./src/auth/config.ts";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  readFrontendConfig({ ...loadEnv(mode, process.cwd(), "VITE_"), ...process.env }, process.env.VERCEL_ENV === "production");
+  return {
   plugins: [react(), tailwindcss()],
   server: {
     host: "127.0.0.1",
@@ -24,4 +28,5 @@ export default defineConfig({
     css: true,
     exclude: ["tests/e2e/**", "node_modules/**", "dist/**"],
   },
+  };
 });

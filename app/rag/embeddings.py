@@ -102,6 +102,7 @@ class SentenceTransformerEmbeddingBackend:
         device: str,
         normalize_embeddings: bool,
         local_files_only: bool,
+        revision: str | None = None,
     ) -> "SentenceTransformerEmbeddingBackend":
         """Load one public SentenceTransformer model on an explicit code path."""
 
@@ -111,6 +112,7 @@ class SentenceTransformerEmbeddingBackend:
             model_name,
             device=device,
             local_files_only=local_files_only,
+            revision=revision,
         )
         return cls(
             cast(SentenceTransformerModel, model),

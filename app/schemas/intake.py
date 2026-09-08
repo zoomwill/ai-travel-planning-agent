@@ -24,7 +24,7 @@ class IntakeRequestModel(BaseModel):
 class ConversationMessageRequest(IntakeRequestModel):
     """One bounded natural-language turn for an explicit local user."""
 
-    user_id: str
+    user_id: str | None = None
     message: str = Field(min_length=1, max_length=4000)
     start_new_trip: bool = False
 
@@ -32,7 +32,7 @@ class ConversationMessageRequest(IntakeRequestModel):
 class ConversationConfirmRequest(IntakeRequestModel):
     """Explicit consent tied to the exact current draft fingerprint."""
 
-    user_id: str
+    user_id: str | None = None
     draft_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     remember_preferences: list[PreferenceText] = Field(default_factory=list, max_length=50)
 
@@ -40,7 +40,7 @@ class ConversationConfirmRequest(IntakeRequestModel):
 class ConversationResetRequest(IntakeRequestModel):
     """Identify the one user namespace whose current intake should reset."""
 
-    user_id: str
+    user_id: str | None = None
 
 
 class ConversationResponse(BaseModel):

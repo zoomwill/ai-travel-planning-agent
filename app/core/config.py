@@ -13,8 +13,27 @@ class Settings(BaseSettings):
     """Validate application and local infrastructure configuration."""
 
     app_name: str = "ai-travel-planner"
-    app_env: str = "development"
+    app_env: Literal["development", "production", "test"] = "development"
     log_level: str = "INFO"
+
+    auth_mode: Literal["demo", "auth0"] = "demo"
+    auth0_issuer: str = ""
+    auth0_audience: str = Field(default="", max_length=256)
+    auth_jwks_cache_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+    auth_jwks_timeout_seconds: float = Field(default=5, gt=0, le=15)
+    auth_rate_intake_per_minute: int = Field(default=10, ge=1, le=100)
+    auth_rate_intake_per_day: int = Field(default=50, ge=1, le=1000)
+    auth_rate_global_intake_per_day: int = Field(default=200, ge=1, le=5000)
+    auth_rate_plan_per_day: int = Field(default=3, ge=1, le=100)
+    auth_rate_global_plan_per_day: int = Field(default=20, ge=1, le=1000)
+    api_docs_enabled: bool = True
+    metrics_enabled: bool = True
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: ["http://127.0.0.1:5173", "http://localhost:5173"]
+    )
+    trusted_hosts: list[str] = Field(
+        default_factory=lambda: ["127.0.0.1", "localhost", "testserver"]
+    )
 
     postgres_user: str = "travel"
     postgres_password: SecretStr = SecretStr("travel_dev_only")
@@ -28,6 +47,9 @@ class Settings(BaseSettings):
     redis_host: str = "127.0.0.1"
     redis_port: int = Field(default=6379, ge=1, le=65535)
     redis_db: int = Field(default=0, ge=0)
+    redis_username: str | None = None
+    redis_password: SecretStr = SecretStr("")
+    redis_ssl: bool = False
 
     chroma_host: str = "127.0.0.1"
     chroma_port: int = Field(default=8001, ge=1, le=65535)
@@ -109,6 +131,7 @@ class Settings(BaseSettings):
         max_length=256,
     )
     rag_embedding_device: str = Field(default="cpu", min_length=1, max_length=32)
+    rag_embedding_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
     rag_embedding_normalize: bool = True
     rag_parent_chunk_size: int = Field(default=1200, gt=0)
     rag_parent_chunk_overlap: int = Field(default=150, ge=0)
@@ -129,7 +152,53 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        hide_input_in_errors=True,
     )
+
+    @model_validator(mode="after")
+    def validate_security(self) -> "Settings":
+        """Fail closed for unsafe cloud configuration while preserving local demo defaults."""
+
+        import re
+
+        from app.auth.configuration import https_origin, normalize_issuer
+
+        if self.auth0_issuer:
+            self.auth0_issuer = normalize_issuer(self.auth0_issuer)
+        if self.auth_mode == "auth0" and (not self.auth0_issuer or not self.auth0_audience.strip()):
+            raise ValueError("auth0 mode requires issuer and API audience")
+        for origin in self.cors_allowed_origins:
+            if origin not in ("http://127.0.0.1:5173", "http://localhost:5173"):
+                if https_origin(origin) != origin:
+                    raise ValueError("CORS must contain exact origins without trailing slash")
+        if not self.trusted_hosts or any(
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]{0,252}", host) is None
+            for host in self.trusted_hosts
+        ):
+            raise ValueError("trusted hosts must be explicit hostnames without wildcards")
+        if self.app_env == "production":
+            if self.auth_mode != "auth0" or self.api_docs_enabled or self.metrics_enabled:
+                raise ValueError("production requires auth0 and disabled public docs/metrics")
+            if not self.cors_allowed_origins or any(
+                not origin.startswith("https://") for origin in self.cors_allowed_origins
+            ):
+                raise ValueError("production requires explicit HTTPS frontend origins")
+            if not any(
+                "." in host and host != "healthcheck.railway.app" and host != "127.0.0.1"
+                for host in self.trusted_hosts
+            ):
+                raise ValueError("production requires the actual API hostname")
+            if self.postgres_password.get_secret_value() in ("", "travel_dev_only"):
+                raise ValueError("production requires a non-development database password")
+            if not self.redis_password.get_secret_value():
+                raise ValueError("production requires Redis authentication")
+            if self.external_configuration_error is not None:
+                raise ValueError("selected external travel providers require credentials")
+            if self.agent_reasoning_mode == "qwen" and not self.qwen_is_configured:
+                raise ValueError("Qwen mode requires its backend credential")
+            if self.travel_search_backend_mode != "direct":
+                raise ValueError("P18 cloud deployment supports the direct backend only")
+        return self
 
     @field_validator("qwen_model", mode="before")
     @classmethod

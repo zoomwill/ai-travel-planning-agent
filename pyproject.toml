@@ -1,7 +1,7 @@
 [project]
 name = "ai-travel-planner"
 version = "0.1.0"
-description = "Beginner-friendly reconstruction of a multi-agent travel planning system"
+description = "Multi-agent travel planning with grounded reasoning and explicit data provenance"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
@@ -25,6 +25,8 @@ dependencies = [
     "fastmcp>=3.4,<4",
     "langchain-mcp-adapters>=0.3,<0.4",
     "openai>=3.3.1",
+    "pyjwt[crypto]>=2.13,<3",
+    "torch==2.13.0",
 ]
 
 [dependency-groups]
@@ -34,6 +36,14 @@ dev = [
     "pytest-asyncio>=0.25,<1.0",
     "ruff>=0.9,<1.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 
 [tool.ruff]
 line-length = 100
