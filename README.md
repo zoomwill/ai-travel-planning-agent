@@ -1,4 +1,4 @@
-# AI Travel Planning Agent
+fre# AI Travel Planning Agent
 
 > A full-stack, stateful multi-agent travel planning system that turns a natural-language conversation into a grounded, reviewed itinerary using LangGraph orchestration, Qwen reasoning, hybrid RAG, parallel travel-search agents, MCP tools, persistent memory, SSE progress streaming, and a React web interface.
 
@@ -20,8 +20,9 @@ Qwen is therefore allowed to reason over supplied candidates and produce structu
 
 ## Current Status
 
-P00–P16 are complete. P17 remains uncommitted; Duffel Flights Developer Test, LiteAPI Hotels
-Sandbox, and one persistent mixed-provider Qwen/SSE workflow were verified on 2026-09-08.
+P00–P17 are complete. P17 adds multi-provider external travel search using Duffel Flights and
+LiteAPI Hotels. Duffel Flights Developer Test, LiteAPI Hotels Sandbox, and one persistent
+mixed-provider Qwen/SSE workflow were verified on 2026-09-08.
 See [the P17 acceptance report](docs/P17_ACCEPTANCE_REPORT.md) for actual results and limitations.
 Duffel Stays is optional and NOT VERIFIED: account access was not granted during P17.
 
@@ -1357,7 +1358,7 @@ The project was built incrementally so that each major architectural capability 
 | P14 | Real Qwen reasoning | Grounded Planner + Reviewer |
 | P15 | Conversational intake | Multi-turn natural-language requirements |
 | P16 | Web chat frontend | Complete browser conversation-to-itinerary UX |
-| P17 | Multi-provider external travel data | Duffel Flights + LiteAPI Hotels, provenance, no booking (uncommitted) |
+| P17 | Multi-provider external travel data | Duffel Flights + LiteAPI Hotels, provenance, no booking |
 
 ---
 
