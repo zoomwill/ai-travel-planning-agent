@@ -15,6 +15,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
 from app.core.config import Settings
+from app.external.backend import configured_sources
 from app.mcp_tools.backend import MCPTravelSearchBackend
 from app.mcp_tools.diagnostics import MCPDiagnostics, MCPServerStatus
 from app.mcp_tools.errors import MCPToolLayerError
@@ -25,6 +26,7 @@ from app.mcp_tools.protocol import (
     TRAVEL_SERVER_NAME,
 )
 from app.mcp_tools.registry import MCPToolRegistry
+from app.search.models import SearchKind
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _REFRESH_COOLDOWN_SECONDS = 1.0
@@ -230,10 +232,32 @@ async def create_mcp_runtime(settings: Settings) -> MCPRuntime:
     registry, diagnostics = await _discover(client, settings)
     invoker = MCPToolInvoker(
         registry=registry,
-        timeout_seconds=settings.mcp_tool_timeout_seconds,
-        max_retries=settings.mcp_max_retries,
+        timeout_seconds=_tool_timeout(settings),
+        max_retries=settings.mcp_max_retries if settings.travel_data_mode == "demo" else 0,
     )
-    backend = MCPTravelSearchBackend(invoker)
+    backend = MCPTravelSearchBackend(
+        invoker,
+        sources=configured_sources(settings),
+        flight_limit=settings.duffel_max_flight_offers,
+        hotel_limit=(
+            settings.liteapi_max_hotels
+            if settings.requires_guest_nationality
+            else settings.duffel_max_stay_results
+        ),
+        fallback_kinds=frozenset(
+            kind
+            for kind, enabled in (
+                (SearchKind.FLIGHTS, settings.duffel_allow_demo_fallback),
+                (
+                    SearchKind.HOTELS,
+                    settings.liteapi_allow_demo_fallback
+                    if settings.requires_guest_nationality
+                    else settings.duffel_allow_demo_fallback,
+                ),
+            )
+            if enabled
+        ),
+    )
     return MCPRuntime(
         settings=settings,
         client=client,
@@ -242,4 +266,17 @@ async def create_mcp_runtime(settings: Settings) -> MCPRuntime:
         invoker=invoker,
         backend=backend,
         _next_refresh_time=time.monotonic() + _REFRESH_COOLDOWN_SECONDS,
+    )
+
+
+def _tool_timeout(settings: Settings) -> float:
+    """Let provider-owned retries finish without a second retry layer duplicating searches."""
+    if settings.travel_data_mode == "demo":
+        return settings.mcp_tool_timeout_seconds
+    duffel_operation = (settings.duffel_timeout_seconds + 2) * (settings.duffel_max_retries + 1)
+    hotel_operation = (settings.liteapi_timeout_seconds + 2) * (settings.liteapi_max_retries + 1)
+    return max(
+        settings.mcp_tool_timeout_seconds,
+        3 * duffel_operation + 2,
+        duffel_operation + hotel_operation + 2,
     )

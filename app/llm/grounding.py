@@ -59,10 +59,15 @@ class GroundedPlannerInput:
 
 
 def stable_candidate_id(kind: CandidateKind, candidate: BaseModel) -> str:
-    """Hash canonical validated provider data without changing provider models."""
+    """Hash stable selection facts while excluding volatile provider metadata."""
 
+    excluded_fields: dict[CandidateKind, set[str]] = {
+        "flight": {"provider_offer_id", "expires_at", "data_source"},
+        "hotel": {"provider_search_result_id", "data_source"},
+        "attraction": {"data_source"},
+    }
     canonical = json.dumps(
-        candidate.model_dump(mode="json"),
+        candidate.model_dump(mode="json", exclude=excluded_fields[kind]),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -107,6 +112,11 @@ def build_grounded_planner_input(
                 name=_safe_text(item.name, 200),
                 rating=item.rating,
                 price_per_night=str(item.price_per_night),
+                total_stay_price=str(item.total_stay_price)
+                if item.total_stay_price is not None
+                else None,
+                stay_nights=item.stay_nights,
+                has_excluded_fees=item.has_excluded_fees,
                 currency=item.currency.value,
                 distance_to_center_km=item.distance_to_center_km,
                 amenities=[_safe_text(value, 120) for value in item.amenities[:20]],

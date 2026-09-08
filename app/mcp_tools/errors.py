@@ -2,15 +2,22 @@
 
 from typing import Literal, TypeAlias
 
-MCPErrorType: TypeAlias = Literal[
-    "mcp_tool_not_found",
-    "mcp_discovery_failed",
-    "mcp_transport_unavailable",
-    "mcp_tool_timeout",
-    "mcp_tool_failed",
-    "mcp_invalid_response",
-    "mcp_duplicate_tool",
-]
+from app.external.duffel.errors import DuffelErrorCode
+from app.external.liteapi.errors import LiteAPIErrorCode
+
+MCPErrorType: TypeAlias = (
+    Literal[
+        "mcp_tool_not_found",
+        "mcp_discovery_failed",
+        "mcp_transport_unavailable",
+        "mcp_tool_timeout",
+        "mcp_tool_failed",
+        "mcp_invalid_response",
+        "mcp_duplicate_tool",
+    ]
+    | DuffelErrorCode
+    | LiteAPIErrorCode
+)
 
 
 class MCPToolLayerError(RuntimeError):

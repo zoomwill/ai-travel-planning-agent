@@ -42,8 +42,18 @@ _PUBLIC_FIELDS = (
     "fallback",
     "turn_count",
     "missing_field_count",
+    "provider",
+    "operation",
+    "environment",
+    "status",
+    "source",
+    "result_count",
+    "validation_error_count",
+    "validation_error_loc",
+    "validation_error_type",
 )
 _SECRET_PATTERNS = (
+    re.compile(r"(?i)\b(?:duffel_(?:test|live)_|sand_|sandbox_|prod_)[A-Za-z0-9_-]{8,}\b"),
     re.compile(r"(?i)(authorization|cookie)\s*[:=]\s*[^\r\n]*"),
     re.compile(r"(?i)(token|api[_-]?key|password)\s*[:=]\s*\S+"),
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"),

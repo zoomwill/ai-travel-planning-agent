@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from enum import StrEnum
-from typing import Literal, TypeAlias, cast
+from typing import Literal, NotRequired, TypeAlias, cast
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict
@@ -23,6 +23,9 @@ SearchKindValue: TypeAlias = Literal[
     "route",
 ]
 SearchStatus: TypeAlias = Literal["ok", "error"]
+TravelDataSourceValue: TypeAlias = Literal[
+    "demo", "duffel_test", "duffel_live", "liteapi_sandbox", "liteapi_production", "demo_fallback"
+]
 
 
 class SearchKind(StrEnum):
@@ -75,6 +78,7 @@ class SearchResultEnvelope(TypedDict):
     kind: SearchKindValue
     status: Literal["ok"]
     data: list[JsonObject]
+    source: NotRequired[TravelDataSourceValue]
 
 
 class SearchErrorEnvelope(TypedDict):
@@ -85,6 +89,7 @@ class SearchErrorEnvelope(TypedDict):
     error_type: str
     safe_message: str
     recoverable: bool
+    source: NotRequired[TravelDataSourceValue]
 
 
 class SearchSummaryEntry(TypedDict):
@@ -92,6 +97,7 @@ class SearchSummaryEntry(TypedDict):
 
     status: SearchStatus
     count: int
+    source: TravelDataSourceValue
 
 
 SearchSummary: TypeAlias = dict[SearchKindValue, SearchSummaryEntry]

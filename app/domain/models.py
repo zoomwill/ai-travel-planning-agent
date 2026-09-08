@@ -2,11 +2,13 @@
 
 from datetime import date as Date
 from datetime import datetime as DateTime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.domain.countries import GuestNationality
 
 
 class Currency(StrEnum):
@@ -16,6 +18,17 @@ class Currency(StrEnum):
     USD = "USD"
     JPY = "JPY"
     EUR = "EUR"
+
+
+class TravelDataSource(StrEnum):
+    """Truthful, bounded provenance for one travel-search result."""
+
+    DEMO = "demo"
+    DUFFEL_TEST = "duffel_test"
+    DUFFEL_LIVE = "duffel_live"
+    LITEAPI_SANDBOX = "liteapi_sandbox"
+    LITEAPI_PRODUCTION = "liteapi_production"
+    DEMO_FALLBACK = "demo_fallback"
 
 
 class TransportMode(StrEnum):
@@ -49,6 +62,9 @@ class TripRequirements(DomainModel):
         description="Currency used for the trip budget and provider prices.",
     )
     travelers: int = Field(gt=0, description="Number of people traveling.")
+    guest_nationality: GuestNationality | None = Field(
+        default=None, description="Explicit trip-only ISO alpha-2 nationality for hotel pricing."
+    )
     preferences: list[str] = Field(
         default_factory=list,
         description="Optional interests or constraints supplied by the traveler.",
@@ -80,18 +96,63 @@ class TripRequirements(DomainModel):
         return self
 
 
+class FlightSegment(DomainModel):
+    """One operating flight inside a direct or connecting itinerary."""
+
+    flight_number: str = Field(min_length=1, description="Operating carrier flight number.")
+    airline: str = Field(min_length=1, description="Full operating carrier name.")
+    origin_iata_code: str = Field(pattern=r"^[A-Z]{3}$")
+    destination_iata_code: str = Field(pattern=r"^[A-Z]{3}$")
+    departure_time: DateTime
+    arrival_time: DateTime
+    duration_minutes: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_time_order(self) -> Self:
+        """Reject a segment whose arrival is not after departure."""
+
+        try:
+            invalid_order = self.arrival_time <= self.departure_time
+        except TypeError as exc:
+            raise ValueError("segment times must use compatible time zones") from exc
+        if invalid_order:
+            raise ValueError("segment arrival_time must be later than departure_time")
+        return self
+
+
 class FlightOption(DomainModel):
-    """One flight result returned by a flight provider."""
+    """One outbound one-way flight result; a return flight is not searched."""
 
     flight_number: str = Field(min_length=1, description="Provider-visible flight identifier.")
-    airline: str = Field(min_length=1, description="Name of the operating mock airline.")
+    airline: str = Field(min_length=1, description="Name of the operating airline.")
     origin: str = Field(min_length=1, description="Departure city.")
     destination: str = Field(min_length=1, description="Arrival city.")
-    departure_time: DateTime = Field(description="Local mock departure date and time.")
-    arrival_time: DateTime = Field(description="Local mock arrival date and time.")
+    departure_time: DateTime = Field(description="Local departure date and time.")
+    arrival_time: DateTime = Field(description="Local arrival date and time.")
     duration_minutes: int = Field(gt=0, description="Scheduled journey duration in minutes.")
-    price: Decimal = Field(gt=0, description="Mock price for one traveler.")
+    price: Decimal = Field(
+        gt=0,
+        description="Outbound one-way price for the searched travel party; return flight excluded.",
+    )
     currency: Currency = Field(description="Currency of the flight price.")
+    segments: list[FlightSegment] = Field(
+        default_factory=list,
+        description="Operating segments; empty only for legacy deterministic demo results.",
+    )
+    stops: int = Field(default=0, ge=0, description="Number of connections in the itinerary.")
+    provider_offer_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description="External search identifier retained for diagnostics, never booking.",
+    )
+    expires_at: DateTime | None = Field(
+        default=None,
+        description="Provider-reported offer expiry when supplied.",
+    )
+    data_source: TravelDataSource = Field(
+        default=TravelDataSource.DEMO,
+        description="Provider provenance for this result.",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -121,24 +182,101 @@ class FlightOption(DomainModel):
             raise ValueError("departure and arrival must use compatible time zones") from exc
         if invalid_order:
             raise ValueError("arrival_time must be later than departure_time")
+        if not self.segments:
+            if self.stops != 0:
+                raise ValueError("a flight without segment details must report zero stops")
+            return self
+        if self.stops != len(self.segments) - 1:
+            raise ValueError("stops must equal the number of connections between segments")
+        first, last = self.segments[0], self.segments[-1]
+        if (
+            self.flight_number != first.flight_number
+            or self.airline != first.airline
+            or self.departure_time != first.departure_time
+            or self.arrival_time != last.arrival_time
+        ):
+            raise ValueError("flight summary must match its first and last operating segments")
+        for previous, current in zip(self.segments, self.segments[1:], strict=False):
+            if (
+                previous.destination_iata_code != current.origin_iata_code
+                or current.departure_time < previous.arrival_time
+            ):
+                raise ValueError("flight segments must form a chronological connection")
         return self
 
 
 class HotelOption(DomainModel):
-    """One hotel result with a nightly mock price."""
+    """One hotel result with a nightly room price."""
 
     name: str = Field(min_length=1, description="Hotel display name.")
     city: str = Field(min_length=1, description="City where the hotel is located.")
-    rating: float = Field(ge=0, le=5, description="Mock guest rating from zero to five.")
-    price_per_night: Decimal = Field(gt=0, description="Mock room price for one night.")
+    rating: float | None = Field(
+        default=None,
+        ge=0,
+        le=5,
+        description="Property star rating, or null when the provider has none.",
+    )
+    review_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=10,
+        description="Guest review score on a separate zero-to-ten scale.",
+    )
+    price_per_night: Decimal = Field(gt=0, description="Room price for one night.")
+    total_stay_price: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="Exact provider stay quote, excluding separately payable property fees.",
+    )
+    stay_nights: int | None = Field(
+        default=None,
+        strict=True,
+        ge=1,
+        le=366,
+        description="Number of nights covered by the stay quote.",
+    )
+    room_name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        description="Provider-supplied room name, when available.",
+    )
+    board_name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="Provider-supplied meal plan, when available.",
+    )
+    refundable: bool | None = Field(
+        default=None, description="Provider refundable classification; conditions may apply."
+    )
+    has_excluded_fees: bool = Field(
+        default=False,
+        description="Whether additional property fees are explicitly excluded from the stay quote.",
+    )
     currency: Currency = Field(description="Currency of the nightly price.")
-    distance_to_center_km: float = Field(
+    distance_to_center_km: float | None = Field(
+        default=None,
         ge=0,
         description="Approximate distance from the city center in kilometers.",
     )
     amenities: list[str] = Field(
         default_factory=list,
-        description="Facilities advertised by the mock hotel.",
+        description="Facilities advertised for the hotel.",
+    )
+    provider_hotel_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Stable external accommodation identifier, never a booking action.",
+    )
+    provider_search_result_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Volatile search identifier retained only as provider metadata.",
+    )
+    data_source: TravelDataSource = Field(
+        default=TravelDataSource.DEMO,
+        description="Provider provenance for this result.",
     )
 
     model_config = ConfigDict(
@@ -157,6 +295,19 @@ class HotelOption(DomainModel):
         }
     )
 
+    @model_validator(mode="after")
+    def validate_stay_quote(self) -> Self:
+        """Keep optional external total, night count and rounded average consistent."""
+        if (self.total_stay_price is None) != (self.stay_nights is None):
+            raise ValueError("stay total and night count must be provided together")
+        if self.total_stay_price is not None and self.stay_nights is not None:
+            expected = (self.total_stay_price / self.stay_nights).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if self.price_per_night != expected:
+                raise ValueError("nightly average must match the exact stay quote")
+        return self
+
 
 class Attraction(DomainModel):
     """One place a traveler could visit."""
@@ -168,6 +319,10 @@ class Attraction(DomainModel):
     estimated_cost: Decimal = Field(ge=0, description="Estimated admission cost per traveler.")
     currency: Currency = Field(description="Currency of the estimated admission cost.")
     opening_hours: str = Field(min_length=1, description="Human-readable mock opening hours.")
+    data_source: TravelDataSource = Field(
+        default=TravelDataSource.DEMO,
+        description="Provider provenance for this result.",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -198,6 +353,10 @@ class WeatherSummary(DomainModel):
         le=100,
         description="Mock probability of rain as a percentage.",
     )
+    data_source: TravelDataSource = Field(
+        default=TravelDataSource.DEMO,
+        description="Provider provenance for this result.",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -225,6 +384,10 @@ class RouteSummary(DomainModel):
     currency: Currency = Field(
         default=Currency.CNY,
         description="Currency of the estimated route cost.",
+    )
+    data_source: TravelDataSource = Field(
+        default=TravelDataSource.DEMO,
+        description="Provider provenance for this result.",
     )
 
     model_config = ConfigDict(
@@ -272,17 +435,29 @@ class DailyItinerary(DomainModel):
     )
 
 
+class TravelDataSources(DomainModel):
+    """Provider provenance for each of the five parallel searches."""
+
+    flights: TravelDataSource = TravelDataSource.DEMO
+    hotels: TravelDataSource = TravelDataSource.DEMO
+    attractions: TravelDataSource = TravelDataSource.DEMO
+    weather: TravelDataSource = TravelDataSource.DEMO
+    route: TravelDataSource = TravelDataSource.DEMO
+
+
 class TravelPlan(DomainModel):
     """A validated deterministic travel plan returned by the planning service."""
 
     requirements: TripRequirements = Field(description="Requirements this plan must satisfy.")
-    flight: FlightOption = Field(description="Selected flight option.")
+    flight: FlightOption = Field(description="Selected outbound one-way flight; no return quote.")
     hotel: HotelOption = Field(description="Selected hotel option.")
     daily_itinerary: list[DailyItinerary] = Field(
         min_length=1,
         description="One or more planned travel days.",
     )
-    total_cost: Decimal = Field(gt=0, description="Estimated total cost of the plan.")
+    total_cost: Decimal = Field(
+        gt=0, description="Plan estimate including outbound airfare only; return flight excluded."
+    )
     currency: Currency = Field(description="Currency shared by all plan costs.")
     budget_warning: str | None = Field(
         default=None,
@@ -291,6 +466,10 @@ class TravelPlan(DomainModel):
     markdown: str = Field(
         default="",
         description="Human-readable Markdown rendering of the same structured plan.",
+    )
+    data_sources: TravelDataSources = Field(
+        default_factory=TravelDataSources,
+        description="Truthful source of each travel-search category.",
     )
 
     model_config = ConfigDict(
@@ -358,6 +537,10 @@ class TravelPlan(DomainModel):
         ]
         if any(currency != self.currency for currency in currencies):
             raise ValueError("all plan costs must use the plan currency")
+        if self.data_sources.flights != self.flight.data_source:
+            raise ValueError("flight source summary must match the selected flight")
+        if self.data_sources.hotels != self.hotel.data_source:
+            raise ValueError("hotel source summary must match the selected hotel")
 
         for day in self.daily_itinerary:
             if not self.requirements.start_date <= day.date <= self.requirements.end_date:

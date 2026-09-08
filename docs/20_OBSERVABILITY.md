@@ -192,6 +192,14 @@ the first deterministic clarification field, explicit confirmation outcomes, and
 of LLM requests whose fixed role is `intake`. User, thread, message, destination, and preference
 values are never metric labels.
 
+P17 appends four panels without changing the earlier 28: external API requests, external API
+errors, external API p95 duration, and search data sources. Provider, operation, status, search
+kind, and the six fixed provenance values are bounded labels. The dashboard JSON, README,
+checker and tests now agree on exactly **32 panels**; the checker rejects both 31 and 33.
+The fixed sources are demo, demo_fallback, duffel_test, duffel_live, liteapi_sandbox and
+liteapi_production. Token, offer/accommodation ID,
+route, airport, city, user, thread, request ID, price, and error text are never labels.
+
 ## Tests and full E2E
 
 Ordinary offline checks need no Docker or network:

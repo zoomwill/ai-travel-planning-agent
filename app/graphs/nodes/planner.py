@@ -10,6 +10,7 @@ from app.domain.models import (
     FlightOption,
     HotelOption,
     RouteSummary,
+    TravelDataSources,
     TravelPlan,
     TripRequirements,
     WeatherSummary,
@@ -295,6 +296,12 @@ def _assemble_plan(
             unavailable_searches=inputs.unavailable,
             revision_policy=inputs.revision_policy,
             grounded_selection=grounded_selection,
+            data_sources=TravelDataSources.model_validate(
+                {
+                    kind: summary.get("source", "demo")
+                    for kind, summary in state.get("search_summary", {}).items()
+                }
+            ),
         )
     except planning_service.PlanningServiceError:
         error_code = (

@@ -23,6 +23,25 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 async def create_agent_plan(request: Request, requirements: TripRequirements) -> TravelPlan:
     """Run validated requirements through Router, Retriever, and Planner nodes."""
 
+    settings = request.app.state.settings
+    if settings.external_configuration_error is not None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": settings.external_configuration_error,
+                "message": "Selected external travel data is not configured.",
+            },
+        )
+
+    if settings.requires_guest_nationality and requirements.guest_nationality is None:
+        raise HTTPException(
+            422,
+            detail={
+                "code": "liteapi_invalid_guest_nationality",
+                "message": "Hotel pricing requires explicit guest nationality.",
+            },
+        )
+
     preferences = ", ".join(requirements.preferences) or "none"
 
     initial_state: TravelPlanState = {

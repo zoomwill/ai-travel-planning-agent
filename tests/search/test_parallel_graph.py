@@ -73,7 +73,11 @@ async def test_noncritical_weather_failure_returns_degraded_plan() -> None:
     assert result["error"] is None
     assert len(result["search_results"]) == 4
     assert len(result["tool_errors"]) == 1
-    assert result["search_summary"]["weather"] == {"status": "error", "count": 0}
+    assert result["search_summary"]["weather"] == {
+        "status": "error",
+        "count": 0,
+        "source": "demo",
+    }
     assert "Weather information unavailable." in result["travel_plan"].markdown
     assert "this plan does not invent it" in result["travel_plan"].markdown
     assert "Retrieved Paris knowledge" in result["travel_plan"].markdown

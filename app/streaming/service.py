@@ -225,6 +225,12 @@ class TravelPlanStream:
 
     def _plan_event(self, mapper: LangGraphEventMapper) -> StreamBusinessEvent:
         plan = cast(TravelPlan, mapper.final_plan)
+        plan = plan.model_copy(
+            update={
+                "flight": plan.flight.model_copy(update={"provider_offer_id": None}),
+                "hotel": plan.hotel.model_copy(update={"provider_search_result_id": None}),
+            }
+        )
         data: JsonObject = {"travel_plan": cast(JsonObject, plan.model_dump(mode="json"))}
         review = mapper.current_review
         if mapper.review_status is not None:

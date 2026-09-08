@@ -77,11 +77,11 @@ def test_thread_plan_state_and_history_are_available(client: TestClient) -> None
     assert plan.json()["thread_id"] == "thread-one"
     assert plan.json()["remembered_preferences"] == ["Quiet neighborhoods"]
     assert plan.json()["search_summary"] == {
-        "flights": {"status": "ok", "count": 2},
-        "hotels": {"status": "ok", "count": 2},
-        "attractions": {"status": "ok", "count": 3},
-        "weather": {"status": "ok", "count": 3},
-        "route": {"status": "ok", "count": 1},
+        "flights": {"status": "ok", "count": 2, "source": "demo"},
+        "hotels": {"status": "ok", "count": 2, "source": "demo"},
+        "attractions": {"status": "ok", "count": 3, "source": "demo"},
+        "weather": {"status": "ok", "count": 3, "source": "demo"},
+        "route": {"status": "ok", "count": 1, "source": "demo"},
     }
     assert plan.json()["tool_errors"] == []
     assert plan.json()["review_status"] == "accepted"

@@ -52,3 +52,14 @@ def test_response_requires_exactly_one_success_or_error_shape() -> None:
     )
     assert failed.data is None
     assert "traceback" not in failed.model_dump_json().casefold()
+
+
+def test_response_rejects_unknown_error_type() -> None:
+    """Do not let arbitrary remote error labels cross the MCP boundary."""
+
+    with pytest.raises(ValidationError, match="error_type"):
+        MCPToolError(
+            error_type="arbitrary_remote_text",  # type: ignore[arg-type]
+            safe_message="Unavailable.",
+            recoverable=False,
+        )

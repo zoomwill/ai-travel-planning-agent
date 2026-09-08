@@ -109,6 +109,10 @@ class QwenPlanReviewer:
                 flight_price=str(draft.flight.price),
                 hotel_name=safe_prompt_text(draft.hotel.name, 200),
                 hotel_price_per_night=str(draft.hotel.price_per_night),
+                hotel_total_stay_price=str(draft.hotel.total_stay_price)
+                if draft.hotel.total_stay_price is not None
+                else None,
+                hotel_has_excluded_fees=draft.hotel.has_excluded_fees,
                 days=[
                     ReviewDaySnapshot(
                         day_number=day.day_number,

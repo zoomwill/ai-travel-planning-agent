@@ -11,11 +11,14 @@ from app.domain.models import (
     Currency,
     DailyItinerary,
     FlightOption,
+    FlightSegment,
     HotelOption,
     QualityScore,
     RouteSummary,
     ToolError,
     TransportMode,
+    TravelDataSource,
+    TravelDataSources,
     TravelPlan,
     TripRequirements,
     WeatherSummary,
@@ -151,6 +154,36 @@ def test_all_models_accept_valid_data() -> None:
 def test_end_date_cannot_precede_start_date() -> None:
     with pytest.raises(ValidationError, match="end_date cannot be earlier"):
         make_requirements(end_date=date(2027, 4, 9))
+
+
+def test_flight_stops_must_match_chronological_segments() -> None:
+    segment = FlightSegment(
+        flight_number="MK318",
+        airline="Mock Pacific",
+        origin_iata_code="PVG",
+        destination_iata_code="NRT",
+        departure_time=datetime(2027, 4, 10, 8, 30),
+        arrival_time=datetime(2027, 4, 10, 11, 30),
+        duration_minutes=180,
+    )
+
+    with pytest.raises(ValidationError, match="stops must equal"):
+        make_flight(segments=[segment], stops=1)
+
+
+def test_plan_source_summary_must_match_selected_results() -> None:
+    """Reject provenance labels that contradict the selected provider data."""
+
+    with pytest.raises(ValidationError, match="flight source summary"):
+        TravelPlan(
+            requirements=make_requirements(),
+            flight=make_flight(data_source=TravelDataSource.DUFFEL_TEST),
+            hotel=make_hotel(),
+            daily_itinerary=[make_day()],
+            total_cost=Decimal("4460.00"),
+            currency=Currency.CNY,
+            data_sources=TravelDataSources(),
+        )
 
 
 @pytest.mark.parametrize(

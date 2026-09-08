@@ -79,10 +79,13 @@ class HotelCandidate(LLMModel):
 
     candidate_id: str = Field(pattern=r"^hotel_[0-9a-f]{24}$")
     name: str = Field(min_length=1, max_length=200)
-    rating: float = Field(ge=0, le=5)
+    rating: float | None = Field(default=None, ge=0, le=5)
     price_per_night: str = Field(min_length=1, max_length=40)
+    total_stay_price: str | None = Field(default=None, max_length=40)
+    stay_nights: int | None = Field(default=None, ge=1, le=366)
+    has_excluded_fees: bool = False
     currency: str = Field(min_length=3, max_length=3)
-    distance_to_center_km: float = Field(ge=0)
+    distance_to_center_km: float | None = Field(default=None, ge=0)
     amenities: list[AmenityText] = Field(default_factory=list, max_length=20)
 
 
@@ -156,6 +159,8 @@ class ReviewPlanSnapshot(LLMModel):
     flight_price: str = Field(min_length=1, max_length=40)
     hotel_name: str = Field(min_length=1, max_length=200)
     hotel_price_per_night: str = Field(min_length=1, max_length=40)
+    hotel_total_stay_price: str | None = Field(default=None, max_length=40)
+    hotel_has_excluded_fees: bool = False
     days: list[ReviewDaySnapshot] = Field(min_length=1, max_length=366)
     total_cost: str = Field(min_length=1, max_length=40)
     currency: str = Field(min_length=3, max_length=3)

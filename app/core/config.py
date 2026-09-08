@@ -35,6 +35,26 @@ class Settings(BaseSettings):
 
     infrastructure_timeout_seconds: float = Field(default=2.0, gt=0)
 
+    travel_data_mode: Literal["demo", "external", "duffel"] = "demo"
+    travel_flight_provider: Literal["demo", "duffel"] = "duffel"
+    travel_hotel_provider: Literal["demo", "liteapi", "duffel_stays"] = "liteapi"
+    liteapi_env: Literal["sandbox", "production"] = "sandbox"
+    liteapi_api_key: SecretStr = SecretStr("")
+    liteapi_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
+    liteapi_max_retries: int = Field(default=1, ge=0, le=2)
+    liteapi_max_hotels: int = Field(default=10, ge=1, le=20)
+    liteapi_max_rates_per_hotel: int = Field(default=1, ge=1, le=20)
+    liteapi_allow_demo_fallback: bool = False
+    duffel_env: Literal["test", "live"] = "test"
+    duffel_access_token: SecretStr = SecretStr("")
+    duffel_api_base_url: Literal["https://api.duffel.com"] = "https://api.duffel.com"
+    duffel_api_version: Literal["v2"] = "v2"
+    duffel_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
+    duffel_max_retries: int = Field(default=1, ge=0, le=3)
+    duffel_max_flight_offers: int = Field(default=5, ge=1, le=20)
+    duffel_max_stay_results: int = Field(default=10, ge=1, le=50)
+    duffel_allow_demo_fallback: bool = False
+
     travel_search_backend_mode: Literal["direct", "mcp"] = "direct"
     mcp_http_host: Literal["127.0.0.1"] = "127.0.0.1"
     mcp_http_port: int = Field(default=9001, ge=1, le=65535)
@@ -148,6 +168,16 @@ class Settings(BaseSettings):
             ) from None
         if self.qwen_enable_thinking:
             raise ValueError("qwen_enable_thinking must remain false for P14 JSON tasks")
+        token = self.duffel_access_token.get_secret_value()
+        if token and self.duffel_env == "test" and not token.startswith("duffel_test_"):
+            raise ValueError("duffel_env=test requires a Duffel test access token")
+        if token and self.duffel_env == "live" and token.startswith("duffel_test_"):
+            raise ValueError("duffel_env=live cannot use a Duffel test access token")
+        hotel_key = self.liteapi_api_key.get_secret_value()
+        if hotel_key:
+            valid_prefixes = ("sand_", "sandbox_") if self.liteapi_env == "sandbox" else ("prod_",)
+            if not hotel_key.startswith(valid_prefixes):
+                raise ValueError("LiteAPI key must match its explicitly configured environment")
         expected_mcp_url = f"http://{self.mcp_http_host}:{self.mcp_http_port}{self.mcp_http_path}"
         if not self.mcp_http_url:
             self.mcp_http_url = expected_mcp_url
@@ -172,6 +202,56 @@ class Settings(BaseSettings):
         """Report key presence without exposing the key value."""
 
         return bool(self.qwen_api_key.get_secret_value())
+
+    @property
+    def duffel_is_configured(self) -> bool:
+        """Report access-token presence without exposing token content or prefix."""
+
+        return bool(self.duffel_access_token.get_secret_value())
+
+    @property
+    def selected_flight_provider(self) -> Literal["demo", "duffel"]:
+        """Keep legacy Duffel mode explicit; demo overrides all selectors."""
+
+        if self.travel_data_mode == "demo":
+            return "demo"
+        return "duffel" if self.travel_data_mode == "duffel" else self.travel_flight_provider
+
+    @property
+    def selected_hotel_provider(self) -> Literal["demo", "liteapi", "duffel_stays"]:
+        """Select LiteAPI only in the new external mode, never through the legacy alias."""
+
+        if self.travel_data_mode == "demo":
+            return "demo"
+        return "duffel_stays" if self.travel_data_mode == "duffel" else self.travel_hotel_provider
+
+    @property
+    def liteapi_is_configured(self) -> bool:
+        """Report presence only, with no key-derived public information."""
+
+        return bool(self.liteapi_api_key.get_secret_value().strip())
+
+    @property
+    def needs_duffel(self) -> bool:
+        """Duffel also supplies the shared authoritative city/airport resolver."""
+
+        return self.selected_flight_provider == "duffel" or self.selected_hotel_provider != "demo"
+
+    @property
+    def requires_guest_nationality(self) -> bool:
+        """Apply hotel-pricing intake policy deterministically."""
+
+        return self.selected_hotel_provider == "liteapi"
+
+    @property
+    def external_configuration_error(self) -> str | None:
+        """Check credentials locally without any provider searches."""
+
+        if self.needs_duffel and not self.duffel_is_configured:
+            return "duffel_not_configured"
+        if self.requires_guest_nationality and not self.liteapi_is_configured:
+            return "liteapi_not_configured"
+        return None
 
     @property
     def postgres_url(self) -> URL:

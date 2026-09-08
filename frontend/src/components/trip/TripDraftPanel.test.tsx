@@ -13,6 +13,7 @@ describe("TripDraftPanel", () => {
       draft: {
         origin: null, destination: "Tokyo", start_date: null, end_date: null,
         duration_days: null, budget: null, currency: null, travelers: null, preferences: [],
+        guest_nationality: null,
       },
       missing_fields: ["origin", "start_date", "end_date", "budget", "currency", "travelers"],
     });

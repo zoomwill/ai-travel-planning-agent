@@ -12,6 +12,7 @@ from app.domain.models import (
     FlightOption,
     HotelOption,
     RouteSummary,
+    TravelDataSources,
     TravelPlan,
     TripRequirements,
     WeatherSummary,
@@ -113,6 +114,7 @@ def assemble_travel_plan_from_results(
     unavailable_searches: Sequence[str] = (),
     revision_policy: RevisionPolicy | None = None,
     grounded_selection: GroundedPlanningSelection | None = None,
+    data_sources: TravelDataSources | None = None,
 ) -> TravelPlan:
     """Combine validated search results without calling any provider."""
 
@@ -148,7 +150,7 @@ def assemble_travel_plan_from_results(
             max_activities_per_day=policy.max_activities_per_day,
             attractions_by_day=attractions_by_day,
         )
-        hotel_cost = hotel.price_per_night * Decimal(len(daily_itinerary))
+        hotel_cost = hotel.total_stay_price or hotel.price_per_night * Decimal(len(daily_itinerary))
         activity_cost = sum(
             (day.estimated_cost for day in daily_itinerary),
             start=Decimal("0.00"),
@@ -163,6 +165,7 @@ def assemble_travel_plan_from_results(
             total_cost=total_cost,
             currency=requirements.currency,
             budget_warning=budget_warning,
+            data_sources=data_sources or TravelDataSources(),
         )
         plan = plan.model_copy(update={"markdown": _render_markdown(plan)})
         contextual_plan = _add_context_sections(
@@ -351,10 +354,17 @@ def _select_hotel(
     """Preserve highest-rating selection unless review requests lower cost."""
 
     if not policy.prefer_lower_cost_options:
-        return max(hotel_options, key=lambda option: option.rating)
+        return max(
+            hotel_options,
+            key=lambda option: option.rating if option.rating is not None else -1.0,
+        )
     return min(
         hotel_options,
-        key=lambda option: (option.price_per_night, -option.rating, option.name),
+        key=lambda option: (
+            option.price_per_night,
+            -(option.rating if option.rating is not None else -1.0),
+            option.name,
+        ),
     )
 
 
@@ -427,15 +437,30 @@ def _build_budget_warning(
 def _render_markdown(plan: TravelPlan) -> str:
     """Render the structured plan as beginner-readable Markdown."""
 
+    title_prefix = (
+        "Travel plan"
+        if plan.data_sources.flights.value.startswith(("duffel_", "liteapi_"))
+        or plan.data_sources.hotels.value.startswith(("duffel_", "liteapi_"))
+        else "Mock travel plan"
+    )
     lines = [
-        f"# Mock travel plan: {plan.requirements.origin} to {plan.requirements.destination}",
+        f"# {title_prefix}: {plan.requirements.origin} to {plan.requirements.destination}",
         "",
         f"- Flight: {plan.flight.airline} {plan.flight.flight_number}",
+        "- Airfare scope: outbound one-way only; return flight is not included in this estimate.",
         f"- Hotel: {plan.hotel.name}",
         f"- Estimated total: {plan.total_cost:.2f} {plan.currency.value}",
     ]
     if plan.budget_warning is not None:
         lines.extend(["", f"> {plan.budget_warning}"])
+    if plan.hotel.has_excluded_fees:
+        lines.extend(
+            [
+                "",
+                "> Additional property fees may be payable at the hotel; "
+                "excluded from this estimate.",
+            ]
+        )
 
     for day in plan.daily_itinerary:
         lines.extend(["", f"## Day {day.day_number} — {day.date.isoformat()}"])

@@ -3,16 +3,20 @@
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from app.domain.models import (
     Attraction,
     FlightOption,
     HotelOption,
     RouteSummary,
+    TravelDataSource,
     TripRequirements,
     WeatherSummary,
 )
+
+if TYPE_CHECKING:
+    from app.search.models import SearchKind
 from app.services.mock_providers import (
     get_route,
     get_weather,
@@ -58,6 +62,9 @@ class SearchBackend(Protocol):
     async def get_route(self, origin: str, destination: str) -> RouteSummary:
         """Return one deterministic origin-to-destination route."""
 
+    def source_for(self, kind: "SearchKind") -> TravelDataSource:
+        """Return expected provenance without performing a search."""
+
 
 @dataclass(frozen=True, slots=True)
 class DeterministicMockSearchBackend:
@@ -68,6 +75,12 @@ class DeterministicMockSearchBackend:
     attraction_provider: AttractionProvider = search_attractions
     weather_provider: WeatherProvider = get_weather
     route_provider: RouteProvider = get_route
+
+    def source_for(self, kind: "SearchKind") -> TravelDataSource:
+        """Every provider in this bundle is deterministic demo data."""
+
+        del kind
+        return TravelDataSource.DEMO
 
     async def search_flights(
         self,

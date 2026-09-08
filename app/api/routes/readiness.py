@@ -95,18 +95,31 @@ async def readiness(
             else "error"
         )
 
+    duffel_status: ServiceStatus | None = None
+    if resources.settings.needs_duffel:
+        duffel_status = "ok" if resources.settings.duffel_is_configured else "error"
+    liteapi_status: ServiceStatus | None = None
+    if resources.settings.requires_guest_nationality:
+        liteapi_status = "ok" if resources.settings.liteapi_is_configured else "error"
+
     services = InfrastructureReadiness(
         postgresql=ServiceReadiness(status=postgresql_status),
         redis=ServiceReadiness(status=redis_status),
         chroma=ServiceReadiness(status=chroma_status),
         mcp=ServiceReadiness(status=mcp_status) if mcp_status is not None else None,
         qwen=ServiceReadiness(status=qwen_status) if qwen_status is not None else None,
+        duffel=(ServiceReadiness(status=duffel_status) if duffel_status is not None else None),
+        liteapi=(ServiceReadiness(status=liteapi_status) if liteapi_status is not None else None),
     )
     statuses = [postgresql_status, redis_status, chroma_status]
     if mcp_status is not None:
         statuses.append(mcp_status)
     if qwen_status is not None:
         statuses.append(qwen_status)
+    if duffel_status is not None:
+        statuses.append(duffel_status)
+    if liteapi_status is not None:
+        statuses.append(liteapi_status)
     metrics = request.app.state.metrics
     metrics.dependency_ready.labels(dependency="postgresql").set(
         1 if postgresql_status == "ok" else 0
@@ -127,6 +140,12 @@ async def readiness(
         metrics.dependency_ready.labels(dependency="mcp_stdio").set(stdio_ready)
     if qwen_status is not None:
         metrics.dependency_ready.labels(dependency="qwen").set(1 if qwen_status == "ok" else 0)
+    if duffel_status is not None:
+        metrics.dependency_ready.labels(dependency="duffel").set(1 if duffel_status == "ok" else 0)
+    if liteapi_status is not None:
+        metrics.dependency_ready.labels(dependency="liteapi").set(
+            1 if liteapi_status == "ok" else 0
+        )
     is_ready = all(status == "ok" for status in statuses)
     response = ReadinessResponse(
         status="ready" if is_ready else "not_ready",

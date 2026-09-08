@@ -141,6 +141,24 @@ def _make_initial_state(payload: ThreadPlanRequest) -> TravelPlanState:
     }
 
 
+def _validate_external_search(payload: ThreadPlanRequest, request: Request) -> None:
+    """Reject missing credentials or nationality before either graph entry point."""
+
+    settings = request.app.state.settings
+    if settings.external_configuration_error is not None:
+        _raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            settings.external_configuration_error,
+            "Selected external travel data is not configured.",
+        )
+    if settings.requires_guest_nationality and payload.requirements.guest_nationality is None:
+        _raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "liteapi_invalid_guest_nationality",
+            "Hotel pricing requires explicit guest nationality.",
+        )
+
+
 def _state_status(values: dict[str, Any], next_nodes: tuple[str, ...] = ()) -> str:
     """Translate graph values into a small public status vocabulary."""
 
@@ -172,6 +190,7 @@ async def prepare_thread_plan_stream(
     validated_user_id = _validate_user_id(payload.user_id)
     persistence = _get_persistence(request)
     settings = request.app.state.settings
+    _validate_external_search(payload, request)
     backend_mode = settings.travel_search_backend_mode
     if backend_mode == "mcp":
         try:
@@ -264,6 +283,7 @@ async def execute_thread_plan(
     validated_thread_id = _validate_thread_id(thread_id)
     validated_user_id = _validate_user_id(payload.user_id)
     persistence = _get_persistence(request)
+    _validate_external_search(payload, request)
     initial_state = _make_initial_state(payload)
     initial_state["search_backend_mode"] = request.app.state.settings.travel_search_backend_mode
     context = TravelRuntimeContext(

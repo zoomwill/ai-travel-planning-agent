@@ -24,15 +24,24 @@ export const planFixture: TravelPlan = travelPlanSchema.parse({
     duration_minutes: 720,
     price: "900.00",
     currency: "USD",
+    segments: [],
+    stops: 0,
+    provider_offer_id: null,
+    expires_at: null,
+    data_source: "demo",
   },
   hotel: {
     name: "Tokyo Quiet Hotel",
     city: "Tokyo",
     rating: 4.6,
+    review_score: null,
     price_per_night: "180.00",
     currency: "USD",
     distance_to_center_km: 2.1,
     amenities: ["Wi-Fi", "breakfast"],
+    provider_hotel_id: null,
+    provider_search_result_id: null,
+    data_source: "demo",
   },
   daily_itinerary: [
     {
@@ -56,6 +65,13 @@ export const planFixture: TravelPlan = travelPlanSchema.parse({
   currency: "USD",
   budget_warning: null,
   markdown: "# Cleveland to Tokyo",
+  data_sources: {
+    flights: "demo",
+    hotels: "demo",
+    attractions: "demo",
+    weather: "demo",
+    route: "demo",
+  },
 });
 
 export function conversationFixture(

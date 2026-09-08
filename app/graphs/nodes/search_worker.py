@@ -7,10 +7,14 @@ from app.domain.models import (
     FlightOption,
     HotelOption,
     RouteSummary,
+    TravelDataSource,
     TripRequirements,
     WeatherSummary,
 )
+from app.external.duffel.errors import DuffelError
+from app.external.liteapi.errors import LiteAPIError
 from app.graphs.state import TravelPlanState
+from app.mcp_tools.errors import MCPToolLayerError
 from app.search.backend import SearchBackend
 from app.search.models import (
     SearchErrorEnvelope,
@@ -71,7 +75,20 @@ def _error_type(exception: Exception) -> str:
         return "empty_result"
     if isinstance(exception, (_InvalidSearchResultError, ValueError)):
         return "invalid_result"
+    if isinstance(exception, (DuffelError, LiteAPIError)):
+        return exception.code
+    if isinstance(exception, MCPToolLayerError):
+        return exception.error_type
     return "provider_error"
+
+
+def _source_for(backend: SearchBackend, kind: SearchKind) -> TravelDataSource:
+    """Read bounded provenance without performing another backend call."""
+
+    try:
+        return backend.source_for(kind)
+    except (AttributeError, ValueError):
+        return TravelDataSource.DEMO
 
 
 async def search_worker_node(
@@ -83,6 +100,7 @@ async def search_worker_node(
 
     task = worker_input["search_task"]
     kind = SearchKind(task["kind"])
+    source = _source_for(backend, kind)
     try:
         requirements = TripRequirements.model_validate(worker_input["requirements_data"])
         if task["request_fingerprint"] != create_request_fingerprint(requirements):
@@ -96,14 +114,34 @@ async def search_worker_node(
             kind=task["kind"],
             error_type=_error_type(exc),
             safe_message=f"The {kind.value} search is unavailable.",
-            recoverable=not isinstance(exc, (ValueError, _InvalidSearchResultError)),
+            recoverable=(
+                exc.recoverable
+                if isinstance(exc, (DuffelError, LiteAPIError, MCPToolLayerError))
+                else not isinstance(exc, (ValueError, _InvalidSearchResultError))
+            ),
+            source=source.value,
         )
         return {"tool_errors": [error]}
 
+    result_sources = {
+        TravelDataSource(getattr(model, "data_source", TravelDataSource.DEMO)) for model in models
+    }
+    if len(result_sources) != 1:
+        error = SearchErrorEnvelope(
+            task_id=task["task_id"],
+            kind=task["kind"],
+            error_type="invalid_result",
+            safe_message=f"The {kind.value} search is unavailable.",
+            recoverable=False,
+            source=source.value,
+        )
+        return {"tool_errors": [error]}
+    actual_source = next(iter(result_sources))
     result = SearchResultEnvelope(
         task_id=task["task_id"],
         kind=task["kind"],
         status="ok",
         data=[dump_model_json(model) for model in models],
+        source=actual_source.value,
     )
     return {"search_results": [result]}

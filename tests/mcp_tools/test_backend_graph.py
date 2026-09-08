@@ -10,7 +10,7 @@ from app.graphs.context import TravelRuntimeContext
 from app.graphs.graph import build_travel_planning_graph
 from app.mcp_tools.backend import MCPTravelSearchBackend
 from app.mcp_tools.errors import MCPToolLayerError
-from app.mcp_tools.models import MCPToolRequest, MCPToolResponse
+from app.mcp_tools.models import MCPToolRequest, MCPToolResponse, failed_response
 from app.search.models import JsonValue, dump_model_json
 from app.services import mock_providers
 from tests.graphs.test_persistence import make_state
@@ -121,6 +121,19 @@ async def test_backend_rejects_mismatched_task_metadata() -> None:
     with pytest.raises(MCPToolLayerError) as captured:
         await MCPTravelSearchBackend(MismatchedInvoker()).search_flights(requirements())
     assert captured.value.error_type == "mcp_invalid_response"
+
+
+@pytest.mark.asyncio
+async def test_backend_normalizes_generic_provider_failure() -> None:
+    """Keep generic MCP failures inside the stable internal error vocabulary."""
+
+    class FailedInvoker:
+        async def invoke(self, tool_name: str, request: MCPToolRequest) -> MCPToolResponse:
+            return failed_response(request, tool_name)
+
+    with pytest.raises(MCPToolLayerError) as captured:
+        await MCPTravelSearchBackend(FailedInvoker()).search_flights(requirements())
+    assert captured.value.error_type == "mcp_tool_failed"
 
 
 @pytest.mark.asyncio

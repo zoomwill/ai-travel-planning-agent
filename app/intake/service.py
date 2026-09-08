@@ -23,6 +23,7 @@ from app.intake.logic import (
     invalid_requirement_fields,
     merge_requirement_patch,
     missing_requirement_fields,
+    require_explicit_nationality,
 )
 from app.intake.models import (
     ConversationIntakeState,
@@ -67,8 +68,10 @@ class ConversationIntakeService:
         history_limit: int = 30,
         clock: Clock | None = None,
         current_date: CurrentDate | None = None,
+        require_guest_nationality: bool = False,
     ) -> None:
         self._store = store
+        self._require_guest_nationality = require_guest_nationality
         self._provider = provider
         self._metrics = metrics
         self._history_limit = history_limit
@@ -150,10 +153,13 @@ class ConversationIntakeService:
                 raise IntakeUnavailableError("llm_provider_error") from None
 
             try:
-                draft = merge_requirement_patch(current.draft, extraction.value.patch)
+                patch = require_explicit_nationality(safe_message, extraction.value.patch)
+                draft = merge_requirement_patch(current.draft, patch)
             except (ArithmeticError, ValueError):
                 raise IntakeUnavailableError("llm_schema_validation_failed") from None
-            missing = missing_requirement_fields(draft)
+            missing = missing_requirement_fields(
+                draft, require_guest_nationality=self._require_guest_nationality
+            )
             invalid = invalid_requirement_fields(draft)
             status = (
                 IntakeStatus.AWAITING_CONFIRMATION
@@ -249,6 +255,11 @@ class ConversationIntakeService:
             raise IntakeConflictError("trip_planning_in_progress")
         if state.status != IntakeStatus.AWAITING_CONFIRMATION:
             self.record_confirmation("invalid")
+            raise IntakeConflictError("draft_not_ready_for_confirmation")
+
+        if missing_requirement_fields(
+            state.draft, require_guest_nationality=self._require_guest_nationality
+        ):
             raise IntakeConflictError("draft_not_ready_for_confirmation")
 
         requirements = complete_trip_requirements(state.draft)

@@ -66,7 +66,10 @@ strings. Do not add a decision, threshold, review round, Markdown, or any other 
 _INTAKE_OUTPUT_CONTRACT = """Return exactly one JSON object with one field named patch.
 patch may contain only fields explicitly changed by the current user message:
 origin, destination, start_date, end_date, duration_days, budget, currency, travelers,
-preferences_add, preferences_remove, clear_fields. Dates must be exact YYYY-MM-DD values.
+guest_nationality, preferences_add, preferences_remove, clear_fields.
+Dates must be exact YYYY-MM-DD values.
+guest_nationality must be an explicitly supplied ISO 3166-1 alpha-2 code (uppercase).
+Never infer nationality from origin, language, destination, name, or any other context.
 duration_days and travelers must be JSON integers; budget must be a JSON number, never a string.
 currency may be only CNY, USD, JPY, or EUR. preferences_add and preferences_remove are arrays of
 short strings. clear_fields is an array of field names and is the only way to clear a value.

@@ -14,6 +14,7 @@ from app.api.routes.persistence import router as persistence_router
 from app.api.routes.plans import router as plans_router
 from app.api.routes.rag import router as rag_router
 from app.api.routes.readiness import router as readiness_router
+from app.api.routes.travel_data import router as travel_data_router
 from app.core.config import Settings, get_settings
 from app.core.lifespan import create_lifespan
 from app.core.persistence import (
@@ -115,6 +116,7 @@ def create_app(
     application.include_router(plans_router)
     application.include_router(persistence_router)
     application.include_router(rag_router)
+    application.include_router(travel_data_router)
     return application
 
 

@@ -60,7 +60,12 @@ def running_http_mcp() -> Iterator[int]:
             str(port),
         ],
         cwd=_PROJECT_ROOT,
-        env={"PYTHONPATH": str(_PROJECT_ROOT), "PYTHONUNBUFFERED": "1"},
+        env={
+            "PYTHONPATH": str(_PROJECT_ROOT),
+            "PYTHONUNBUFFERED": "1",
+            "TRAVEL_DATA_MODE": "demo",
+            "AGENT_REASONING_MODE": "deterministic",
+        },
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

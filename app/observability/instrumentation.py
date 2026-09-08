@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, ParamSpec, TypeVar, cast
 
+from app.domain.models import TravelDataSource
 from app.observability.metrics import (
     BACKENDS,
     CACHE_STATUSES,
@@ -17,6 +18,7 @@ from app.observability.metrics import (
     REVIEW_STATUSES,
     SEARCH_KINDS,
     STATUSES,
+    TRAVEL_DATA_SOURCES,
     MetricsRuntime,
     normalize_label,
 )
@@ -149,8 +151,14 @@ class InstrumentedSearchBackend:
     async def _run(self, kind: SearchKindValue, operation: Awaitable[R]) -> R:
         started = time.monotonic()
         status = "success"
+        source = self.source_for_value(kind)
         try:
-            return await operation
+            result = await operation
+            if isinstance(result, list) and result:
+                source = str(getattr(result[0], "data_source", source))
+            elif hasattr(result, "data_source"):
+                source = str(result.data_source)
+            return result
         except asyncio.CancelledError:
             status = "cancelled"
             raise
@@ -167,6 +175,29 @@ class InstrumentedSearchBackend:
             self._metrics.search_duration.labels(**labels).observe(
                 max(0.0, time.monotonic() - started)
             )
+            self._metrics.search_sources.labels(
+                kind=normalize_label(kind, SEARCH_KINDS),
+                source=normalize_label(source, TRAVEL_DATA_SOURCES),
+                status=normalize_label(status, STATUSES),
+            ).inc()
+
+    def source_for_value(self, kind: SearchKindValue) -> str:
+        """Read one backend's bounded expected source without calling a provider."""
+
+        source_for = getattr(self._backend, "source_for", None)
+        if source_for is None:
+            return "demo"
+        from app.search.models import SearchKind
+
+        return str(source_for(SearchKind(kind)))
+
+    def source_for(self, kind: Any) -> TravelDataSource:
+        """Preserve the SearchBackend provenance seam through instrumentation."""
+
+        source_for = getattr(self._backend, "source_for", None)
+        return (
+            TravelDataSource(source_for(kind)) if source_for is not None else TravelDataSource.DEMO
+        )
 
     async def search_flights(self, requirements: Any) -> Any:
         """Measure one flight search."""

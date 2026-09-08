@@ -15,6 +15,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.domain.countries import GuestNationality
 from app.domain.models import Currency, TripRequirements
 from app.memory.preferences import clean_preference_value, normalize_preference
 
@@ -43,6 +44,7 @@ class RequirementField(StrEnum):
     CURRENCY = "currency"
     TRAVELERS = "travelers"
     PREFERENCES = "preferences"
+    GUEST_NATIONALITY = "guest_nationality"
 
 
 class IntakeStatus(StrEnum):
@@ -72,6 +74,7 @@ class PartialTripRequirements(IntakeModel):
     budget: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     currency: Currency | None = None
     travelers: int | None = Field(default=None, strict=True, ge=1, le=100)
+    guest_nationality: GuestNationality | None = None
     preferences: list[PreferenceText] = Field(default_factory=list, max_length=20)
 
     @field_validator("preferences")
@@ -99,9 +102,10 @@ class TripRequirementPatch(IntakeModel):
     budget: StrictInt | StrictFloat | None = Field(default=None, gt=0, le=1_000_000_000)
     currency: Currency | None = None
     travelers: StrictInt | None = Field(default=None, ge=1, le=100)
+    guest_nationality: GuestNationality | None = None
     preferences_add: list[PreferenceText] = Field(default_factory=list, max_length=20)
     preferences_remove: list[PreferenceText] = Field(default_factory=list, max_length=20)
-    clear_fields: list[RequirementField] = Field(default_factory=list, max_length=9)
+    clear_fields: list[RequirementField] = Field(default_factory=list, max_length=10)
 
     @field_validator("start_date", "end_date", mode="before")
     @classmethod
@@ -144,6 +148,7 @@ class TripRequirementPatch(IntakeModel):
             "budget",
             "currency",
             "travelers",
+            "guest_nationality",
         }
         for field_name in self.model_fields_set & optional_values:
             if getattr(self, field_name) is None:
@@ -192,8 +197,8 @@ class ConversationIntakeState(IntakeModel):
     status: IntakeStatus = IntakeStatus.COLLECTING
     assistant_message: str = Field(min_length=1, max_length=1000)
     draft: PartialTripRequirements = Field(default_factory=PartialTripRequirements)
-    missing_fields: list[RequirementField] = Field(default_factory=list, max_length=7)
-    invalid_fields: list[RequirementField] = Field(default_factory=list, max_length=9)
+    missing_fields: list[RequirementField] = Field(default_factory=list, max_length=8)
+    invalid_fields: list[RequirementField] = Field(default_factory=list, max_length=10)
     draft_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     messages: list[ConversationMessage] = Field(default_factory=list, max_length=100)
     turn_count: int = Field(default=0, ge=0)

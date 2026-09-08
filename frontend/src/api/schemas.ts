@@ -11,12 +11,26 @@ export const requirementFields = [
   "currency",
   "travelers",
   "preferences",
+  "guest_nationality",
 ] as const;
 
 const currencySchema = z.enum(currencies);
 const requirementFieldSchema = z.enum(requirementFields);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const decimalSchema = z.string().min(1);
+const travelDataSourceSchema = z.enum(["demo", "duffel_test", "duffel_live", "liteapi_sandbox", "liteapi_production", "demo_fallback"]);
+
+const flightSegmentSchema = z
+  .object({
+    flight_number: z.string().min(1),
+    airline: z.string().min(1),
+    origin_iata_code: z.string().regex(/^[A-Z]{3}$/),
+    destination_iata_code: z.string().regex(/^[A-Z]{3}$/),
+    departure_time: z.string().min(1),
+    arrival_time: z.string().min(1),
+    duration_minutes: z.number().int().positive(),
+  })
+  .strict();
 
 export const partialTripRequirementsSchema = z
   .object({
@@ -25,6 +39,7 @@ export const partialTripRequirementsSchema = z
     start_date: dateSchema.nullable(),
     end_date: dateSchema.nullable(),
     duration_days: z.number().int().positive().nullable(),
+    guest_nationality: z.string().regex(/^[A-Z]{2}$/).nullable().default(null),
     budget: decimalSchema.nullable(),
     currency: currencySchema.nullable(),
     travelers: z.number().int().positive().nullable(),
@@ -41,6 +56,7 @@ export const tripRequirementsSchema = z
     budget: decimalSchema,
     currency: currencySchema,
     travelers: z.number().int().positive(),
+    guest_nationality: z.string().regex(/^[A-Z]{2}$/).nullable().default(null),
     preferences: z.array(z.string()),
   })
   .strict();
@@ -56,6 +72,11 @@ const flightSchema = z
     duration_minutes: z.number().int().positive(),
     price: decimalSchema,
     currency: currencySchema,
+    segments: z.array(flightSegmentSchema),
+    stops: z.number().int().nonnegative(),
+    provider_offer_id: z.string().min(1).nullable(),
+    expires_at: z.string().min(1).nullable(),
+    data_source: travelDataSourceSchema,
   })
   .strict();
 
@@ -63,11 +84,21 @@ const hotelSchema = z
   .object({
     name: z.string().min(1),
     city: z.string().min(1),
-    rating: z.number().min(0).max(5),
+    rating: z.number().min(0).max(5).nullable(),
+    review_score: z.number().min(0).max(10).nullable(),
     price_per_night: decimalSchema,
+    total_stay_price: decimalSchema.nullable().default(null),
+    stay_nights: z.number().int().positive().nullable().default(null),
+    room_name: z.string().min(1).max(200).nullable().default(null),
+    board_name: z.string().min(1).max(120).nullable().default(null),
+    refundable: z.boolean().nullable().default(null),
+    has_excluded_fees: z.boolean().default(false),
     currency: currencySchema,
-    distance_to_center_km: z.number().nonnegative(),
+    distance_to_center_km: z.number().nonnegative().nullable(),
     amenities: z.array(z.string()),
+    provider_hotel_id: z.string().min(1).nullable(),
+    provider_search_result_id: z.string().min(1).nullable(),
+    data_source: travelDataSourceSchema,
   })
   .strict();
 
@@ -92,6 +123,15 @@ export const travelPlanSchema = z
     currency: currencySchema,
     budget_warning: z.string().nullable(),
     markdown: z.string(),
+    data_sources: z
+      .object({
+        flights: travelDataSourceSchema,
+        hotels: travelDataSourceSchema,
+        attractions: travelDataSourceSchema,
+        weather: travelDataSourceSchema,
+        route: travelDataSourceSchema,
+      })
+      .strict(),
   })
   .strict();
 
@@ -195,6 +235,7 @@ const searchCompletedEventSchema = z
         search_kind: searchKindSchema,
         status: z.literal("ok"),
         result_count: z.number().int().nonnegative(),
+        source: travelDataSourceSchema.default("demo"),
       })
       .strict(),
   })

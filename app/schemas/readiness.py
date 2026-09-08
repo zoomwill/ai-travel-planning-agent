@@ -22,6 +22,8 @@ class InfrastructureReadiness(BaseModel):
     chroma: ServiceReadiness
     mcp: ServiceReadiness | None = None
     qwen: ServiceReadiness | None = None
+    duffel: ServiceReadiness | None = None
+    liteapi: ServiceReadiness | None = None
 
 
 class ReadinessResponse(BaseModel):

@@ -14,6 +14,7 @@ from app.domain.models import (
     FlightOption,
     HotelOption,
     RouteSummary,
+    TravelDataSource,
     TripRequirements,
     WeatherSummary,
 )
@@ -35,20 +36,43 @@ class MCPInvoker(Protocol):
 class MCPTravelSearchBackend:
     """Translate SearchBackend calls to five named MCP tools."""
 
-    def __init__(self, invoker: MCPInvoker) -> None:
+    def __init__(
+        self,
+        invoker: MCPInvoker,
+        configured_external_source: TravelDataSource = TravelDataSource.DEMO,
+        *,
+        sources: dict[SearchKind, TravelDataSource] | None = None,
+        flight_limit: int = 20,
+        hotel_limit: int = 20,
+        fallback_kinds: frozenset[SearchKind] = frozenset(),
+    ) -> None:
         self._invoker = invoker
+        self._configured_external_source = configured_external_source
+        self._sources = sources
+        self._flight_limit = flight_limit
+        self._hotel_limit = hotel_limit
+        self._fallback_kinds = fallback_kinds
+
+    def source_for(self, kind: SearchKind) -> TravelDataSource:
+        """Return configured provenance before an MCP response is available."""
+
+        if self._sources is not None:
+            return self._sources[kind]
+        if kind in {SearchKind.FLIGHTS, SearchKind.HOTELS}:
+            return self._configured_external_source
+        return TravelDataSource.DEMO
 
     async def search_flights(self, requirements: TripRequirements) -> list[FlightOption]:
         """Call the HTTP flight tool and validate every domain result."""
 
         response = await self._invoke(SearchKind.FLIGHTS, requirements)
-        return self._validate_list(response, FlightOption)
+        return self._validate_list(response, FlightOption, limit=self._flight_limit)
 
     async def search_hotels(self, requirements: TripRequirements) -> list[HotelOption]:
         """Call the HTTP hotel tool and validate every domain result."""
 
         response = await self._invoke(SearchKind.HOTELS, requirements)
-        return self._validate_list(response, HotelOption)
+        return self._validate_list(response, HotelOption, limit=self._hotel_limit)
 
     async def search_attractions(self, requirements: TripRequirements) -> list[Attraction]:
         """Call the HTTP attraction tool and validate every domain result."""
@@ -103,8 +127,7 @@ class MCPTravelSearchBackend:
         tool_name: ToolName = SEARCH_KIND_TO_TOOL[kind]
         response = await self._invoker.invoke(tool_name, request)
         if (
-            not response.ok
-            or response.tool_name != tool_name
+            response.tool_name != tool_name
             or response.task_id != request.task_id
             or response.request_fingerprint != request.request_fingerprint
         ):
@@ -113,12 +136,40 @@ class MCPTravelSearchBackend:
                 "The MCP response metadata did not match the backend request.",
                 recoverable=False,
             )
+        if not response.ok:
+            if response.error is None:
+                raise MCPToolLayerError(
+                    "mcp_invalid_response",
+                    "The MCP tool returned an invalid failure envelope.",
+                    recoverable=False,
+                )
+            error_type = response.error.error_type
+            if error_type == "provider_error":
+                error_type = "mcp_tool_failed"
+            elif error_type == "invalid_request":
+                error_type = "mcp_invalid_response"
+            raise MCPToolLayerError(
+                error_type,
+                response.error.safe_message,
+                recoverable=response.error.recoverable,
+            )
+        expected_source = self.source_for(kind)
+        if response.source != expected_source and not (
+            response.source is TravelDataSource.DEMO_FALLBACK and kind in self._fallback_kinds
+        ):
+            raise MCPToolLayerError(
+                "mcp_invalid_response",
+                "MCP source does not match the selected provider.",
+                recoverable=False,
+            )
         return response
 
     @staticmethod
     def _validate_list(
         response: MCPToolResponse,
         model_type: type[DomainResult],
+        *,
+        limit: int | None = None,
     ) -> list[DomainResult]:
         """Validate one JSON list back into the existing domain model type."""
 
@@ -129,7 +180,14 @@ class MCPTravelSearchBackend:
                 recoverable=False,
             )
         try:
-            return [model_type.model_validate(item) for item in response.data]
+            models = [model_type.model_validate(item) for item in response.data[:limit]]
+            if any(getattr(item, "data_source", None) != response.source for item in models):
+                raise MCPToolLayerError(
+                    "mcp_invalid_response",
+                    "MCP result provenance is inconsistent.",
+                    recoverable=False,
+                )
+            return models
         except ValidationError as exc:
             raise MCPToolLayerError(
                 "mcp_invalid_response",
@@ -156,6 +214,12 @@ class MCPTravelSearchBackend:
 
 class UnavailableMCPTravelSearchBackend:
     """Fail safely when MCP discovery did not produce an invokable registry."""
+
+    def source_for(self, kind: SearchKind) -> TravelDataSource:
+        """Return demo only as a safe pre-response default."""
+
+        del kind
+        return TravelDataSource.DEMO
 
     @staticmethod
     def _raise() -> NoReturn:

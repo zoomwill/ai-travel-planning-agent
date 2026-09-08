@@ -24,7 +24,12 @@ from tests.mcp_tools.helpers import request
         (travel_mcp, ["search_attractions", "search_flights", "search_hotels"]),
     ],
 )
-async def test_servers_expose_only_expected_tools(server, expected_names: list[str]) -> None:
+async def test_servers_expose_only_expected_tools(
+    server,
+    expected_names: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TRAVEL_DATA_MODE", "demo")
     async with Client(server) as client:
         tools = await client.list_tools()
 
@@ -47,7 +52,9 @@ async def test_every_tool_returns_deterministic_domain_data(
     tool_name: str,
     model_type,
     is_list: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("TRAVEL_DATA_MODE", "demo")
     payload = {"request": request().model_dump(mode="json")}
     if tool_name == "get_route":
         payload["request"]["route_origin"] = "Tokyo Station"

@@ -45,7 +45,16 @@ SSE_EVENT_TYPES = frozenset(
         "error",
     }
 )
-DEPENDENCIES = frozenset({"postgresql", "redis", "chroma", "mcp_http", "mcp_stdio", "qwen"})
+DEPENDENCIES = frozenset(
+    {"postgresql", "redis", "chroma", "mcp_http", "mcp_stdio", "qwen", "duffel", "liteapi"}
+)
+EXTERNAL_OPERATIONS = frozenset(
+    {"flight_offer_request", "stay_search", "stay_rates", "location_lookup", "hotel_rates"}
+)
+EXTERNAL_STATUSES = frozenset({"success", "error", "timeout", "rate_limited", "access_denied"})
+TRAVEL_DATA_SOURCES = frozenset(
+    {"demo", "duffel_test", "duffel_live", "liteapi_sandbox", "liteapi_production", "demo_fallback"}
+)
 CACHE_STATUSES = frozenset({"hit", "miss", "disabled", "unavailable"})
 REVIEW_STATUSES = frozenset({"accepted", "forced_finalized", "failed", "pending"})
 FINALIZATION_REASONS = frozenset(
@@ -69,6 +78,7 @@ REQUIREMENT_FIELDS = frozenset(
         "budget",
         "currency",
         "travelers",
+        "guest_nationality",
         "preferences",
     }
 )
@@ -115,6 +125,9 @@ class MetricsRuntime:
     intake_confirmations: Counter
     intake_clarifications: Counter
     dependency_ready: Gauge
+    external_requests: Counter
+    external_duration: Histogram
+    search_sources: Counter
 
     @classmethod
     def create(cls, registry: CollectorRegistry | None = None) -> MetricsRuntime:
@@ -309,6 +322,25 @@ class MetricsRuntime:
                 "travel_planner_dependency_ready",
                 "Last real readiness result (1 ready, 0 not ready).",
                 ("dependency",),
+                registry=owned_registry,
+            ),
+            external_requests=Counter(
+                "travel_planner_external_requests",
+                "External provider HTTP attempts.",
+                ("provider", "operation", "status"),
+                registry=owned_registry,
+            ),
+            external_duration=Histogram(
+                "travel_planner_external_request_duration_seconds",
+                "External provider HTTP-attempt duration.",
+                ("provider", "operation", "status"),
+                buckets=workflow_buckets,
+                registry=owned_registry,
+            ),
+            search_sources=Counter(
+                "travel_planner_search_source",
+                "Completed search branches by truthful data source.",
+                ("kind", "source", "status"),
                 registry=owned_registry,
             ),
         )

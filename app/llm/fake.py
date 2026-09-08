@@ -65,7 +65,7 @@ class FakeStructuredLLMProvider:
                 selected_flight_id=prompt_input.flights[0].candidate_id,
                 selected_hotel_id=max(
                     prompt_input.hotels,
-                    key=lambda hotel: hotel.rating,
+                    key=lambda hotel: hotel.rating if hotel.rating is not None else -1.0,
                 ).candidate_id,
                 daily_attraction_ids=daily,
                 planning_notes="Selected only supplied deterministic candidates.",

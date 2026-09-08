@@ -24,9 +24,21 @@ def aggregate_search_results_node(state: TravelPlanState) -> TravelPlanState:
         kind_value = search_kind_value(kind)
         result = result_by_kind.get(kind_value)
         if result is not None and result["data"] and kind_value not in error_kinds:
-            entry = SearchSummaryEntry(status="ok", count=len(result["data"]))
+            entry = SearchSummaryEntry(
+                status="ok",
+                count=len(result["data"]),
+                source=result.get("source", "demo"),
+            )
         else:
-            entry = SearchSummaryEntry(status="error", count=0)
+            error = next(
+                (item for item in state.get("tool_errors", []) if item["kind"] == kind_value),
+                None,
+            )
+            entry = SearchSummaryEntry(
+                status="error",
+                count=0,
+                source=error.get("source", "demo") if error is not None else "demo",
+            )
         summary[kind_value] = entry
 
     return {"search_summary": summary}

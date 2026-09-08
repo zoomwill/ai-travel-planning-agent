@@ -61,6 +61,7 @@ def _service(request: Request) -> ConversationIntakeService:
         provider=provider,
         metrics=request.app.state.metrics,
         history_limit=request.app.state.settings.intake_history_limit,
+        require_guest_nationality=request.app.state.settings.requires_guest_nationality,
     )
 
 

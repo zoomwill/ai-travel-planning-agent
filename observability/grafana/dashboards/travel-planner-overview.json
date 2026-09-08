@@ -2,7 +2,7 @@
   "id": null,
   "uid": "travel-planner-overview",
   "title": "Travel Planner Observability Overview",
-  "tags": ["travel-planner", "p13", "p15"],
+  "tags": ["travel-planner", "p13", "p15", "p17"],
   "timezone": "browser",
   "schemaVersion": 42,
   "version": 1,
@@ -193,6 +193,31 @@
       "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
       "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
       "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(travel_planner_llm_request_duration_seconds_bucket{role=\"intake\"}[$__rate_interval])))", "legendFormat": "intake"}]
+    },
+    {
+      "id": 29, "type": "timeseries", "title": "29. External API requests",
+      "gridPos": {"x": 0, "y": 49, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (provider, operation, status) (rate(travel_planner_external_requests_total[$__rate_interval]))", "legendFormat": "{{provider}} {{operation}} {{status}}"}]
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "30. External API errors",
+      "gridPos": {"x": 6, "y": 49, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (provider, operation, status) (rate(travel_planner_external_requests_total{status!=\"success\"}[$__rate_interval]))", "legendFormat": "{{provider}} {{operation}} {{status}}"}]
+    },
+    {
+      "id": 31, "type": "timeseries", "title": "31. External API p95",
+      "gridPos": {"x": 12, "y": 49, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, provider, operation) (rate(travel_planner_external_request_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{provider}} {{operation}}"}]
+    },
+    {
+      "id": 32, "type": "timeseries", "title": "32. Search data sources",
+      "gridPos": {"x": 18, "y": 49, "w": 6, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "travel-planner-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (kind, source, status) (rate(travel_planner_search_source_total[$__rate_interval]))", "legendFormat": "{{kind}} {{source}} {{status}}"}]
     }
   ]
 }

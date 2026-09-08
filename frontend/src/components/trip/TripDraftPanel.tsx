@@ -14,6 +14,7 @@ const labels: Record<string, string> = {
   currency: "Currency",
   travelers: "Travelers",
   preferences: "Preferences",
+  guest_nationality: "Hotel pricing nationality",
 };
 
 interface TripDraftPanelProps {
@@ -54,6 +55,7 @@ export function TripDraftPanel({ conversation, planning, onConfirm }: TripDraftP
         <div><dt><Users size={15} /> Travelers</dt><dd>{draft?.travelers ?? "Not set"}</dd></div>
         <div><dt><Wallet size={15} /> Budget</dt><dd>{draft === undefined ? "Not set" : formatMoney(draft.budget, draft.currency)}</dd></div>
       </dl>
+      {draft?.guest_nationality != null && <p className="mt-3 text-sm">Hotel pricing nationality: {draft.guest_nationality} (this trip only)</p>}
 
       <div className="mt-5">
         <p className="draft-label">Preferences</p>

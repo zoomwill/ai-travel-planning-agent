@@ -784,3 +784,163 @@ Record deviations from source pseudocode and important engineering decisions her
   remain deterministic sample data, there is no booking or payment, SSE has no replay, and the
   stream reports workflow progress rather than real model tokens. Real browser/Qwen acceptance is
   separately gated and excluded from ordinary tests.
+
+### 2026-08-28 — Phase P17 Duffel external travel data
+
+- Provider correction: The earlier Amadeus direction is not implemented because its Self-Service
+  APIs were decommissioned on 2026-07-17. P17 instead uses the current official Duffel REST API,
+  bearer access tokens, fixed host `https://api.duffel.com`, and `Duffel-Version: v2`. No OAuth
+  client-secret exchange or third-party Duffel SDK was added; the already-direct `httpx 0.28.1`
+  dependency provides the async transport and MockTransport test seam.
+- Data/transport separation: `TRAVEL_DATA_MODE=demo|duffel` controls facts, while the existing
+  `TRAVEL_SEARCH_BACKEND_MODE=direct|mcp` controls how the application reaches the five tools.
+  Duffel mode replaces only flights and hotels; attractions, weather, and route remain demo.
+  FastAPI direct mode owns one shared AsyncClient in its lifespan. The independent HTTP MCP server
+  creates and closes its own runtime from its own environment and never receives a token in tool
+  arguments.
+- Official endpoint choices: Flight search creates one one-way `/air/offer_requests` request and
+  explicitly sends `return_offers=true&view=offers` and validates the documented top-level `data`
+  Offer Request with its embedded `offers`. Location resolution uses `/places/suggestions` rather
+  than an LLM or a small hard-coded airport list. Stays uses `/stays/search` with official
+  geographic coordinates, dates, adult guests, and one room. P17 never calls Flight Orders, Stays
+  Bookings, payments, or quotes for booking.
+- Date and price semantics: Project `end_date` is inclusive, while Stays `check_out_date` is
+  exclusive, so the adapter sends `end_date + 1 day`. Duffel's cheapest stay amount is the total
+  for the room, all nights, and all guests; mapping divides that Decimal by the inclusive trip-night
+  count and rounds to cents. Initial support is deliberately one room and one or two adults; larger
+  parties fail with `duffel_unsupported_request` rather than showing a misleading price.
+- Mapping honesty: Every operating flight segment is retained with full operating-carrier name,
+  IATA endpoints, timestamps, duration, and stop count. Offer ID/expiry are metadata only. Hotel
+  property rating remains nullable and distinct from nullable review score; missing amenities map
+  to an empty list, and distance is derived by Haversine only when coordinates exist. Unsupported
+  currencies fail because P17 does not invent an FX conversion.
+- Real-schema correction: The first real test-mode Flights smoke reached Duffel successfully but
+  returned `duffel_invalid_response`. The earlier sanitized fixture always supplied string
+  durations and empty airport lists. Current Duffel v2 schemas instead declare offer-slice and
+  segment `duration` as nullable and ISO 8601, and Places `airports` as a nullable list. External
+  response models now ignore unused vendor additions, retain strict types for consumed data, model
+  both carrier flight numbers as strings and carrier/place values as objects, and accept documented
+  nulls. A null flight duration is derived only from the nested airport IANA time zones and local
+  schedule; it is never guessed. Schema diagnostics retain and log only provider, operation, error
+  count, Pydantic `loc`, and Pydantic `type`; the validation input and exception cause are discarded.
+  The single post-correction real Flights call exposed three non-string operating flight-number
+  locations and three slice-duration strings outside the earlier hour/minute regex. Values remained
+  intentionally hidden. The model therefore accepts only string-or-null for the operating number
+  (never integer coercion), falls back to the strict marketing number when null, and uses Pydantic's
+  ISO 8601 `timedelta` validation for positive non-null durations, including day components.
+  That one real call still returned `duffel_invalid_response`; it was not repeated after these final
+  corrections. That earlier focused Duffel suite passed 48 offline tests; the ordinary suite passed
+  518 tests with 14 skips. This historical pending status is superseded by the user's later real
+  Flights successes: latest 70 offers, earlier 71, 75 and 81. Duffel Flights Developer Test is
+  user-verified. Stays access remained unapproved through 2026-09-08 and is not a P17 gate.
+- Retry deviation: The phase source broadly suggested retrying temporary 5xx responses. Current
+  Duffel response-handling documentation explicitly recommends retrying 503/504 and not retrying
+  500/502. The client therefore retries only timeouts, transport failures, 429, 503, and 504, with
+  one retry by default and a two-second cap on the `ratelimit-reset` delay. 400/401/403, malformed
+  JSON, and schema failures do not retry.
+- Provenance/fallback: Search summaries, persisted domain results, final plans, SSE search-complete
+  events, metrics, MCP envelopes, and the frontend use the fixed sources `demo`, `duffel_test`,
+  `duffel_live`, and `demo_fallback`. Fallback defaults off. When explicitly enabled it is logged,
+  counted, persisted, and labeled; a Duffel failure is never silently presented as external data.
+  Volatile offer expiry/search IDs and source labels are excluded from grounded candidate identity.
+- Readiness/security: `/api/v1/travel-data/status` performs no remote request and exposes no token
+  prefix. Missing token in Duffel mode makes `/ready` and pre-stream validation fail, while
+  `/health` remains a local liveness response. Authorization headers, raw responses, external
+  objects, and exceptions never enter graph state, checkpoints, SSE, metrics, frontend, or logs.
+  Real tests are isolated behind `RUN_DUFFEL_INTEGRATION_TESTS=1`; ordinary and Docker integration
+  suites remain offline with respect to Duffel.
+- Initial P17 verification: Ruff lint and format checks passed, strict mypy found no issues in 148
+  application files, and the ordinary offline suite passed 512 tests with 14 explicitly gated
+  skips. With PostgreSQL, Redis, and Chroma available, the ordinary integration suite passed 10
+  tests with one independently gated test skipped and 515 tests deselected; it did not select or
+  contact Duffel. Vitest passed 59 tests in 11 files, the production frontend build passed, and
+  Playwright passed two desktop/mobile mock journeys with two real-backend journeys skipped.
+  At that time `DUFFEL_ACCESS_TOKEN` was not configured, so the no-credential smoke checker failed
+  fast with a safe configuration message, as designed. A later user-executed Flights-only smoke
+  reached the real test environment but exposed the schema mismatch recorded above. Real Duffel
+  Stays and the full mixed-source Agent path were **NOT VERIFIED** and were not attempted during
+  that focused Flights diagnosis. The final acceptance below supersedes the mixed-Agent status.
+
+### 2026-09-08 — P17 continuation: Duffel Flights + LiteAPI Hotels
+
+- Source intent changed explicitly: retain verified Duffel Flights, replace required Stays with
+  LiteAPI/Nuitee Connect hotel search. Existing uncommitted Duffel work is preserved; Stays is an
+  optional adapter with NOT VERIFIED real acceptance (approval pending through 2026-09-08).
+- New `external` mode separates flight/hotel selectors; demo overrides both; legacy `duffel`
+  still selects Flights + Stays. Shared Duffel Places resolution means LiteAPI hotels also need
+  the Duffel location credential even if flights are demo. Status/readiness disclose this locally.
+- Current official LiteAPI v3 rates API uses a fixed trusted host and X-API-Key. Response metadata
+  is top-level `hotels[]`, joined to rates `data[]` by property ID, not invented nested hotelData.
+  References and exact field/price contracts are in `24_EXTERNAL_TRAVEL_DATA.md`.
+- External projection models ignore unused fields but strictly validate consumed fields. Amounts
+  are parsed into Decimal from numeric JSON. No raw JSON, headers, rate IDs or unbounded remarks
+  enter domain models. Bounded loc/type diagnostics reuse the Duffel safety pattern.
+- P15 nationality is an optional explicit ISO alpha-2 field with deterministic conditional
+  clarification/confirmation. It is not inferred and is not automatically saved as user preference.
+- Existing dates are inclusive (P15 duration − 1, P04 daily itinerary and per-day hotel budget).
+  Oct 12–16 therefore maps to five nights and checkout Oct 17. Tests span those layers. Exact
+  stay totals are retained to avoid multiplying rounding error from the nightly average.
+- Included taxes are not added twice; separately payable fees set an honest bounded UI warning.
+  Nullable stars/reviews/amenities/distance are not fabricated. One room, one or two adults only.
+- One HTTP pool/provider/process; bounded provider retry owns retry policy. MCP gets sufficient
+  deadline budget and no outer external retry to prevent repeating costly provider work.
+- Safe sources now include LiteAPI sandbox/production. Final SSE clears offer/search identifiers
+  in an output-only copy, preserving internal checkpoints and the single-graph-run invariant.
+- Ordinary integration MCP subprocesses explicitly receive demo mode, preventing a private
+  external .env from accidentally spending requests during local Docker acceptance.
+- Final review fixes: persistent non-stream planning now shares the same local credential and
+  nationality preflight as SSE; duplicate properties compare exact stay totals; explicit demo
+  fallback is capped before entering graph state; LiteAPI can use an official IATA code when
+  shared location resolution lacks coordinates, while the legacy Duffel default is unchanged.
+  Regression tests also cover MCP source crossover/caps, wrong occupancy, inconsistent quote
+  totals, environment/key-prefix mismatch, HTTP 204, and smoke gates with no HTTP construction.
+- Executed 2026-09-08: targeted offline suite 243 passed; Ruff lint/format passed (350 Python
+  files formatted); mypy passed 159 app files; full pytest 604 passed/15 skipped; explicit local
+  integration 10 passed/1 skipped/608 deselected. Frontend lint/typecheck/build passed; Vitest
+  60 tests in 11 files passed; Playwright 2 mock desktop/mobile passes and 2 real-backend skips.
+- Earlier acceptance gate (superseded by the final verification below): the LiteAPI checker was invoked once and returned exit 1,
+  `FAIL LiteAPI configuration: liteapi_not_configured`. It made zero external HTTP requests.
+  At that point LiteAPI sandbox result count and full mixed real Agent/SSE were NOT VERIFIED. Per the requested
+  sequence, no further Duffel, Stays or Qwen calls were made. A private sandbox-key configuration
+  was needed before real acceptance could resume. This historical result is not the current status.
+- Infrastructure checks passed: PostgreSQL accepting connections, Redis PONG, Chroma HTTP 200
+  with executor/log client ready. Existing PostgreSQL, Redis, Chroma, Prometheus and Grafana named
+  volumes were preserved. HEAD remains 238be49; no staging, commit, push, history edit or P18 work.
+
+### 2026-09-08 — P17 final real acceptance and strict review
+
+- User had already verified LiteAPI Sandbox with 4 returned/4 mapped hotels and Duffel Flights
+  repeatedly. Final review independently ran the real LiteAPI gate once (1 passed; 4 mapped),
+  one Duffel Flights-only smoke (70 raw offers), and exactly one real persistent mixed Qwen/SSE
+  path (1 passed). No Stays request, commit, push, history change or P18 work.
+- The mixed run executed Graph once with Send × 5; flight/hotel intervals overlapped. Each of
+  three Planner calls received 5 flight/10 hotel candidates and selected known application IDs.
+  Reviewer ran three times under the application bound. There were 16 inspected checkpoints;
+  strict MessagePack and a fresh PostgreSQL connection restored the identical domain plan.
+  Only the acceptance test's own fresh UUID thread checkpoints were deleted.
+- SSE had one final plan_completed and correct duffel_test/liteapi_sandbox/demo sources. The run
+  made one flight offer request, one hotel rates request and three Places lookups, with zero
+  retries and all fallbacks off. Qwen's existing metrics reported 13,137 input and 1,601 output
+  tokens. No model text or raw provider JSON was recorded in the report; no token estimates.
+- Medium review fixes: (1) outbound one-way scope is now explicit in domain descriptions,
+  final Markdown and UI, with no price or identity change; (2) prompt-only nationality provenance
+  is backed by deterministic application validation. Only a dedicated current-message ISO code
+  answer is accepted; inferred country-from-origin/locale is ignored. CN collection → JP
+  correction and absence of preference-memory writes are covered offline. The paid non-conversational
+  path does not use this intake guard, so no extra paid rerun was needed.
+- Date review reads the domain description, P15 duration−1 derivation, inclusive DailyItinerary
+  loop, old per-day hotel budgeting and provider request. Oct 12–16 remains 5 nights with checkout
+  Oct 17. The clarification question now says last trip date, not return date. No silent switch to
+  a conventional four-night checkout interpretation was made.
+- Check hardening: smoke verifies HotelOption/sandbox source; real tests use separate markers;
+  ordinary test transport blocks ungated Qwen as well as travel providers; safe acceptance tree
+  checks reject header names case-insensitively. Grafana JSON/docs/checker/tests agree on exactly
+  32 panels and six provenance values. These checks do not change provider HTTP semantics.
+- Final checks: targeted offline 344 passed; full pytest 621 passed/16 skipped; Ruff and format
+  passed (354 Python files), mypy passed 159 app files. Local Docker integration 10 passed/1 skipped.
+  Frontend lint/typecheck/build passed, Vitest 60 passed in 11 files, mock browser E2E 2 passed
+  and real-browser E2E 2 skipped. See P17_ACCEPTANCE_REPORT.md for exact commands and limitations.
+- Duffel Stays remains optional, implemented but NOT VERIFIED: account access was not granted
+  during P17 despite the user's attempts. Test/sandbox success is not production inventory or
+  production readiness. Real mixed MCP, another real conversational browser path, and live Grafana
+  visualization were not additionally run; they remain NOT VERIFIED in this final review.

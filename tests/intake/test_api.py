@@ -238,6 +238,7 @@ def test_reset_and_start_new_trip_do_not_delete_existing_graph_checkpoint() -> N
         "budget": None,
         "currency": None,
         "travelers": None,
+        "guest_nationality": None,
         "preferences": [],
     }
     assert graph_state.status_code == 200 and graph_state.json()["status"] == "complete"

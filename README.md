@@ -20,7 +20,10 @@ Qwen is therefore allowed to reason over supplied candidates and produce structu
 
 ## Current Status
 
-The project has completed **P00–P16**.
+P00–P16 are complete. P17 remains uncommitted; Duffel Flights Developer Test, LiteAPI Hotels
+Sandbox, and one persistent mixed-provider Qwen/SSE workflow were verified on 2026-09-08.
+See [the P17 acceptance report](docs/P17_ACCEPTANCE_REPORT.md) for actual results and limitations.
+Duffel Stays is optional and NOT VERIFIED: account access was not granted during P17.
 
 | Area | Current state |
 | --- | --- |
@@ -39,11 +42,18 @@ The project has completed **P00–P16**.
 | Frontend | React + TypeScript + Vite + Tailwind CSS |
 | Browser runtime validation | Zod |
 | Frontend tests | Vitest + React Testing Library + Playwright |
-| Real travel inventory | **Not implemented yet** |
+| External travel search | Duffel Flights + LiteAPI Hotels; optional Duffel Stays; search-only |
+| Default travel data | Deterministic demo data |
 | Authentication | **Not implemented yet** |
 | Booking / payment | **Not implemented yet** |
 
-The current application is a **fully working local AI travel-planning product demo**, but its flight, hotel, attraction, weather, and route provider data is still deterministic sample data. It must not be interpreted as live travel inventory.
+The application remains demo-first. `TRAVEL_DATA_MODE=external` uses per-kind selectors, defaulting
+to Duffel Flights + LiteAPI Hotels. Attractions, weather, and routes stay demo. The integrations
+use real HTTP APIs, but test/sandbox data is not production inventory or bookable pricing.
+Legacy `TRAVEL_DATA_MODE=duffel` still selects Flights + Stays. There is no booking/payment flow.
+
+The current flight search is **outbound one-way only**. The displayed flight price and plan
+estimate exclude a return flight; they are not a complete round-trip airfare quote.
 
 ---
 
@@ -241,6 +251,46 @@ Prometheus labels are restricted to bounded sets such as:
 ---
 
 # Key Features
+
+## Multi-provider external travel search
+
+P17 adds an opt-in, search-only external provider layer:
+
+- Duffel Flight Offer Requests with direct and connecting segments;
+- LiteAPI hotel rates with exact Decimal stay totals, nightly averages and excluded-fee warnings;
+- optional Duffel Stays adapter (real acceptance NOT VERIFIED; account access was not granted during P17);
+- official Duffel Places suggestions for city/IATA/coordinate resolution;
+- fixed-host authentication and one lifespan-owned async pool per external provider;
+- bounded timeout/retry behavior and safe provider errors;
+- truthful demo, Duffel test/live, LiteAPI sandbox/production, and explicit fallback provenance;
+- direct and MCP transport parity;
+- no silent fallback and no booking endpoints.
+
+The safe default remains:
+
+```dotenv
+TRAVEL_DATA_MODE=demo
+```
+
+To opt into external test/sandbox mode, configure keys privately in the ignored `.env` file:
+
+```dotenv
+TRAVEL_DATA_MODE=external
+TRAVEL_FLIGHT_PROVIDER=duffel
+TRAVEL_HOTEL_PROVIDER=liteapi
+DUFFEL_ENV=test
+LITEAPI_ENV=sandbox
+DUFFEL_ALLOW_DEMO_FALLBACK=false
+LITEAPI_ALLOW_DEMO_FALLBACK=false
+```
+
+Never put a real token in `.env.example`, source code, frontend code, commands committed to Git,
+or documentation. Configure `DUFFEL_ACCESS_TOKEN` and `LITEAPI_API_KEY` privately. LiteAPI needs
+explicit trip `guest_nationality`; intake asks for it before confirmation. It is not automatically
+saved as a long-term preference. Demo and legacy Duffel planning do not require it.
+The shared location resolver currently uses Duffel Places, including for LiteAPI hotels.
+Project dates are inclusive: Oct 12–16 means five itinerary days and five hotel nights, with
+checkout Oct 17. Hotel totals exclude any separately payable property fees; never assume all-in.
 
 ## Conversational trip intake
 
@@ -603,7 +653,7 @@ P13+ adds application observability with:
 - Grafana provisioning,
 - an automatically provisioned dashboard.
 
-The current dashboard contains **28 panels** covering areas such as:
+The current dashboard contains **32 panels** covering areas such as:
 
 - HTTP traffic and latency,
 - graph runs,
@@ -615,6 +665,8 @@ The current dashboard contains **28 panels** covering areas such as:
 - SSE connections,
 - Qwen requests,
 - intake activity,
+- external provider request outcomes and p95 duration,
+- per-search data-source provenance,
 - dependency readiness.
 
 Prometheus and Grafana are observers only; their failure does not make the travel-planning API unavailable.
@@ -946,6 +998,7 @@ Do **not** run `docker compose down -v` unless you intentionally want to erase l
 | POST | `/api/v1/rag/search` | Local RAG diagnostic search |
 | GET | `/api/v1/mcp/status` | MCP status |
 | GET | `/api/v1/llm/status` | LLM configuration status |
+| GET | `/api/v1/travel-data/status` | Local travel-data configuration status; no remote probe |
 
 The diagnostic/status APIs are intended for local development. Authentication has not yet been implemented.
 
@@ -1039,11 +1092,11 @@ uv run mypy app
 uv run pytest -q
 ```
 
-Current P16-era validated baseline:
+P17 multi-provider offline result, executed 2026-09-08:
 
 ```text
-464 passed
-12 skipped
+621 passed
+16 skipped
 ```
 
 Run infrastructure integration tests explicitly:
@@ -1058,10 +1111,35 @@ Current validated result:
 ```text
 10 passed
 1 skipped
-465 deselected
+626 deselected
 ```
 
 Real Qwen tests are gated separately to avoid accidental API usage and cost.
+
+Real Duffel tests are also independent from normal infrastructure tests:
+
+```bash
+RUN_DUFFEL_INTEGRATION_TESTS=1 \
+uv run pytest -m duffel_integration -q
+
+uv run python scripts/check_duffel.py
+# Flights only. Do not run Stays for P17 acceptance; account access was not granted.
+
+RUN_LITEAPI_INTEGRATION_TESTS=1 uv run python scripts/check_liteapi.py
+```
+
+These commands make real external requests. The ordinary `uv run pytest -q` and
+`RUN_INTEGRATION_TESTS=1` suites do not contact Duffel or LiteAPI. The LiteAPI checker requires its
+explicit gate and a configured sandbox key; zero rates is a failure, not fabricated success.
+
+Final real acceptance on 2026-09-08: LiteAPI gate passed with 4 mapped sandbox hotels;
+one Duffel Flights regression returned 70 raw offers; one real persistent mixed Qwen/SSE path
+passed with 5 flight and 10 hotel candidates per Planner call. Planner and Reviewer each ran
+three times within the configured limit. Existing metrics reported 13,137 input tokens and
+1,601 output tokens, not estimates. All fallbacks and retries were disabled for that one path.
+No Stays request was made. These are test/sandbox results, not production real-time inventory.
+The [complete report](docs/P17_ACCEPTANCE_REPORT.md) includes the paid gates; do not repeat them
+as ordinary regression tests.
 
 ---
 
@@ -1082,7 +1160,7 @@ Current validated baseline:
 ```text
 Vitest:
 11 test files passed
-57 tests passed
+60 tests passed
 
 Playwright:
 2 mock browser E2E tests passed
@@ -1205,11 +1283,15 @@ This project distinguishes between **reasoning** and **travel facts**.
 - SSE
 - Prometheus/Grafana
 - React web application
+- Duffel HTTP transport when explicitly enabled and supplied with a valid token
 
-### Demo / deterministic
+### Configurable
 
-- flight search data
-- hotel search data
+- flights: demo by default; Duffel test/live only when explicitly enabled
+- hotels: demo by default; LiteAPI sandbox/production when selected; Duffel Stays optional
+
+### Always demo / deterministic in P17
+
 - attraction search data
 - weather data
 - route data
@@ -1223,7 +1305,8 @@ Therefore the application currently must **not** be used as:
 - a booking system,
 - a payment system.
 
-The frontend explicitly labels current travel options as demo data.
+The frontend displays every category's source. `Duffel Test` explicitly says test data, and an
+operator-enabled fallback is labeled `Demo Fallback` rather than appearing external.
 
 ---
 
@@ -1231,8 +1314,8 @@ The frontend explicitly labels current travel options as demo data.
 
 The following capabilities are intentionally not implemented yet:
 
-- real flight inventory,
-- real hotel inventory,
+- verified live-mode flight inventory (the first acceptance target is Developer Test Mode),
+- guaranteed Duffel Stays access (it is account-dependent),
 - real weather data,
 - real map / route data,
 - live attraction availability,
@@ -1274,6 +1357,7 @@ The project was built incrementally so that each major architectural capability 
 | P14 | Real Qwen reasoning | Grounded Planner + Reviewer |
 | P15 | Conversational intake | Multi-turn natural-language requirements |
 | P16 | Web chat frontend | Complete browser conversation-to-itinerary UX |
+| P17 | Multi-provider external travel data | Duffel Flights + LiteAPI Hotels, provenance, no booking (uncommitted) |
 
 ---
 
@@ -1325,23 +1409,12 @@ These commits document the incremental engineering history of this project.
 | Qwen integration | [`docs/21_QWEN_LLM_INTEGRATION.md`](docs/21_QWEN_LLM_INTEGRATION.md) |
 | Conversational intake | [`docs/22_CONVERSATIONAL_INTAKE.md`](docs/22_CONVERSATIONAL_INTAKE.md) |
 | React web frontend | [`docs/23_WEB_CHAT_FRONTEND.md`](docs/23_WEB_CHAT_FRONTEND.md) |
+| External travel data | [`docs/24_EXTERNAL_TRAVEL_DATA.md`](docs/24_EXTERNAL_TRAVEL_DATA.md) |
 | RAG evaluation | [`docs/evaluation/P10_RAG_EVALUATION.md`](docs/evaluation/P10_RAG_EVALUATION.md) |
 
 ---
 
 # Roadmap
-
-## P17 — Real external travel data
-
-Planned direction:
-
-- replace selected deterministic providers with legitimate external APIs,
-- preserve the current `SearchBackend` abstraction,
-- clearly distinguish live vs fallback/demo results,
-- add provider-specific rate-limit and failure handling,
-- keep grounded Qwen reasoning above the data-source layer.
-
-The project should introduce real APIs gradually rather than replacing all five provider categories at once.
 
 ## P18 — Authentication & deployment
 

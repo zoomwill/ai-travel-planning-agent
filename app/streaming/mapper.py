@@ -21,7 +21,34 @@ _NODE_NAMES: dict[str, str] = {
     "reviewer": "reviewer",
     "finalize_plan": "finalize_plan",
 }
-_SEARCH_ERROR_CODES = {"empty_result", "invalid_result", "provider_error"}
+_SEARCH_ERROR_CODES = {
+    "empty_result",
+    "invalid_result",
+    "provider_error",
+    "duffel_not_configured",
+    "duffel_invalid_environment",
+    "duffel_authentication_failed",
+    "duffel_rate_limited",
+    "duffel_timeout",
+    "duffel_transport_error",
+    "duffel_invalid_response",
+    "duffel_no_flight_offers",
+    "duffel_no_stay_results",
+    "duffel_stays_access_denied",
+    "duffel_location_not_found",
+    "duffel_unsupported_request",
+    "duffel_provider_error",
+    "liteapi_not_configured",
+    "liteapi_authentication_failed",
+    "liteapi_rate_limited",
+    "liteapi_timeout",
+    "liteapi_transport_error",
+    "liteapi_invalid_response",
+    "liteapi_no_hotel_rates",
+    "liteapi_invalid_guest_nationality",
+    "liteapi_unsupported_request",
+    "liteapi_provider_error",
+}
 _RETRIEVAL_ERROR_CODES = {"retrieval_query_invalid", "retrieval_unavailable"}
 
 
@@ -173,6 +200,7 @@ class LangGraphEventMapper:
                                 "search_kind": kind,
                                 "status": "ok",
                                 "result_count": len(data),
+                                "source": str(envelope.get("source", "demo")),
                             },
                         )
                     ]

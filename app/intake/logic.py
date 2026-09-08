@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import cast
@@ -27,13 +28,42 @@ _QUESTION_TEMPLATES: dict[RequirementField, str] = {
     RequirementField.ORIGIN: "What city will you travel from?",
     RequirementField.DESTINATION: "What is your destination?",
     RequirementField.START_DATE: "What exact date would you like to depart?",
-    RequirementField.END_DATE: "What exact return date or trip duration would you like?",
+    RequirementField.END_DATE: "What is the last trip date or trip duration you would like?",
     RequirementField.DURATION_DAYS: "How many inclusive calendar days should the trip last?",
     RequirementField.TRAVELERS: "How many people are traveling?",
     RequirementField.BUDGET: "What is the total trip budget?",
     RequirementField.CURRENCY: "Which currency should the budget use?",
     RequirementField.PREFERENCES: "Which preferences should be kept for this trip?",
+    RequirementField.GUEST_NATIONALITY: "What nationality should I use for hotel pricing?",
 }
+
+
+def require_explicit_nationality(message: str, patch: TripRequirementPatch) -> TripRequirementPatch:
+    """Accept a nationality code only from an unambiguous current-message answer.
+
+    A bare code or a dedicated nationality field is accepted. Other natural-language messages
+    require a separate clarification; a model cannot borrow the origin, locale or old context.
+    """
+
+    code = patch.guest_nationality
+    if code is None:
+        return patch
+    answer = message.strip().rstrip(".!。！")
+    explicit = (
+        answer.upper() == code
+        or re.fullmatch(
+            rf"(?:my\s+|我的)?(?:guest[_ -]?nationality|nationality|国籍)"
+            rf"\s*(?:is\s+|[:：=为是]\s*)?[\"']?{re.escape(code)}[\"']?",
+            answer,
+            flags=re.IGNORECASE,
+        )
+        is not None
+    )
+    if explicit:
+        return patch
+    return TripRequirementPatch.model_validate(
+        patch.model_dump(exclude_unset=True, exclude={"guest_nationality"})
+    )
 
 
 def merge_requirement_patch(
@@ -58,6 +88,7 @@ def merge_requirement_patch(
         "budget",
         "currency",
         "travelers",
+        "guest_nationality",
     )
     for field_name in scalar_fields:
         if field_name in patch.model_fields_set:
@@ -142,10 +173,19 @@ def _derive_dates(values: dict[str, object], patch: TripRequirementPatch) -> Non
         values["start_date"] = end - timedelta(days=duration - 1)
 
 
-def missing_requirement_fields(draft: PartialTripRequirements) -> list[RequirementField]:
+def missing_requirement_fields(
+    draft: PartialTripRequirements,
+    *,
+    require_guest_nationality: bool = False,
+) -> list[RequirementField]:
     """Compute required fields from the real TripRequirements model, never from Qwen."""
 
-    return [field for field in _REQUIRED_FIELD_ORDER if getattr(draft, field.value) is None]
+    required = (
+        (*_REQUIRED_FIELD_ORDER, RequirementField.GUEST_NATIONALITY)
+        if require_guest_nationality
+        else _REQUIRED_FIELD_ORDER
+    )
+    return [field for field in required if getattr(draft, field.value) is None]
 
 
 def invalid_requirement_fields(draft: PartialTripRequirements) -> list[RequirementField]:
@@ -208,5 +248,10 @@ def assistant_message_for(
         f"{requirements.start_date.isoformat()} through {requirements.end_date.isoformat()}, "
         f"{requirements.travelers} traveler(s), budget {requirements.budget} "
         f"{requirements.currency.value}, preferences: {preferences}. "
-        "Please confirm this exact draft before planning."
+        + (
+            f"Hotel pricing nationality: {requirements.guest_nationality}. "
+            if requirements.guest_nationality is not None
+            else ""
+        )
+        + "Please confirm this exact draft before planning."
     )

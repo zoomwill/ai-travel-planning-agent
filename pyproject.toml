@@ -54,6 +54,9 @@ markers = [
     "integration: requires explicitly enabled local Docker infrastructure",
     "observability: requires RUN_OBSERVABILITY_TESTS=1 and the local P13 stack",
     "llm_integration: requires RUN_LLM_INTEGRATION_TESTS=1 and a real Qwen API key",
+    "duffel_integration: requires RUN_DUFFEL_INTEGRATION_TESTS=1 and a Duffel test token",
+    "liteapi_integration: requires RUN_LITEAPI_INTEGRATION_TESTS=1 and a LiteAPI sandbox key",
+    "external_agent_integration: explicitly gated one-run real providers, Qwen and PostgreSQL acceptance",
 ]
 
 [build-system]

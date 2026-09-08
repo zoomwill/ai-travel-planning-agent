@@ -140,11 +140,11 @@ def test_aggregator_summary_ignores_result_arrival_order() -> None:
 
     assert first == second
     assert first["search_summary"] == {
-        "flights": {"status": "ok", "count": 2},
-        "hotels": {"status": "ok", "count": 2},
-        "attractions": {"status": "ok", "count": 3},
-        "weather": {"status": "ok", "count": 5},
-        "route": {"status": "ok", "count": 1},
+        "flights": {"status": "ok", "count": 2, "source": "demo"},
+        "hotels": {"status": "ok", "count": 2, "source": "demo"},
+        "attractions": {"status": "ok", "count": 3, "source": "demo"},
+        "weather": {"status": "ok", "count": 5, "source": "demo"},
+        "route": {"status": "ok", "count": 1, "source": "demo"},
     }
 
 
@@ -170,5 +170,13 @@ def test_aggregator_marks_failed_kind_without_removing_successes() -> None:
         }
     )
 
-    assert result["search_summary"]["weather"] == {"status": "error", "count": 0}
-    assert result["search_summary"]["flights"] == {"status": "ok", "count": 2}
+    assert result["search_summary"]["weather"] == {
+        "status": "error",
+        "count": 0,
+        "source": "demo",
+    }
+    assert result["search_summary"]["flights"] == {
+        "status": "ok",
+        "count": 2,
+        "source": "demo",
+    }

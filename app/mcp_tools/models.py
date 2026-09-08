@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
-from app.domain.models import TripRequirements
+from app.domain.models import TravelDataSource, TripRequirements
+from app.mcp_tools.errors import MCPErrorType
 
 
 class MCPModel(BaseModel):
@@ -26,6 +27,7 @@ class MCPTripRequirements(MCPModel):
     currency: str = Field(min_length=1)
     travelers: int = Field(gt=0)
     preferences: list[str] = Field(default_factory=list)
+    guest_nationality: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
 
     @classmethod
     def from_domain(cls, requirements: TripRequirements) -> Self:
@@ -60,7 +62,7 @@ class MCPToolRequest(MCPModel):
 class MCPToolError(MCPModel):
     """A deliberately small error safe to cross process boundaries."""
 
-    error_type: str = Field(min_length=1, max_length=64)
+    error_type: MCPErrorType | Literal["provider_error", "invalid_request"]
     safe_message: str = Field(min_length=1, max_length=256)
     recoverable: bool
 
@@ -74,7 +76,10 @@ class MCPToolResponse(MCPModel):
     request_fingerprint: str = Field(min_length=1, max_length=128)
     data: JsonValue = None
     error: MCPToolError | None = None
-    provider: str = Field(default="deterministic_mock", pattern=r"^deterministic_mock$")
+    provider: str = Field(
+        default="deterministic_mock", pattern=r"^(deterministic_mock|duffel|liteapi)$"
+    )
+    source: TravelDataSource = TravelDataSource.DEMO
 
     @model_validator(mode="after")
     def validate_success_or_error(self) -> Self:
@@ -91,6 +96,8 @@ def successful_response(
     request: MCPToolRequest,
     tool_name: str,
     data: JsonValue,
+    *,
+    source: TravelDataSource = TravelDataSource.DEMO,
 ) -> MCPToolResponse:
     """Build a validated successful envelope without duplicating metadata."""
 
@@ -100,6 +107,8 @@ def successful_response(
         task_id=request.task_id,
         request_fingerprint=request.request_fingerprint,
         data=data,
+        provider=_provider_for(source),
+        source=source,
     )
 
 
@@ -107,7 +116,9 @@ def failed_response(
     request: MCPToolRequest,
     tool_name: str,
     *,
-    error_type: str = "provider_error",
+    error_type: MCPErrorType | Literal["provider_error", "invalid_request"] = "provider_error",
+    recoverable: bool = False,
+    source: TravelDataSource = TravelDataSource.DEMO,
 ) -> MCPToolResponse:
     """Build a sanitized failure envelope without exception text or traceback."""
 
@@ -119,6 +130,18 @@ def failed_response(
         error=MCPToolError(
             error_type=error_type,
             safe_message=f"The {tool_name} tool could not complete the request.",
-            recoverable=False,
+            recoverable=recoverable,
         ),
+        provider=_provider_for(source),
+        source=source,
     )
+
+
+def _provider_for(source: TravelDataSource) -> str:
+    """Map bounded provenance to the equally bounded MCP provider field."""
+
+    if source in {TravelDataSource.DUFFEL_TEST, TravelDataSource.DUFFEL_LIVE}:
+        return "duffel"
+    if source in {TravelDataSource.LITEAPI_SANDBOX, TravelDataSource.LITEAPI_PRODUCTION}:
+        return "liteapi"
+    return "deterministic_mock"

@@ -46,6 +46,10 @@ def create_lifespan(
             resources = await resource_factory(settings)
             if resources.llm_runtime is None:
                 resources.llm_runtime = create_llm_runtime(settings, runtime_metrics)
+            if resources.duffel_runtime is not None:
+                resources.duffel_runtime.client.metrics = runtime_metrics
+            if resources.travel_runtime is not None:
+                resources.travel_runtime.set_metrics(runtime_metrics)
             app.state.resources = resources
             advanced_retriever = None
             if resources.rag_runtime is not None:

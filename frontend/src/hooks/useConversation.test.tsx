@@ -65,6 +65,7 @@ describe("useConversation", () => {
         budget: null,
         currency: null,
         travelers: null,
+        guest_nationality: null,
         preferences: [],
       },
       missing_fields: ["origin", "destination", "start_date", "end_date", "budget", "travelers"],
