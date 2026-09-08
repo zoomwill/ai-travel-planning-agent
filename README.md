@@ -1,4 +1,4 @@
-fre# AI Travel Planning Agent
+# AI Travel Planning Agent
 
 > A full-stack, stateful multi-agent travel planning system that turns a natural-language conversation into a grounded, reviewed itinerary using LangGraph orchestration, Qwen reasoning, hybrid RAG, parallel travel-search agents, MCP tools, persistent memory, SSE progress streaming, and a React web interface.
 
