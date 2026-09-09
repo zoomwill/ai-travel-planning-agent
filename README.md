@@ -4,6 +4,19 @@
 
 ---
 
+## Live Demo
+
+- **Frontend:** [AI Travel Planning Agent](https://ai-travel-planning-agent-eight.vercel.app)
+- **Backend health:** [Railway API health](https://api-production-0475.up.railway.app/health)
+
+Sign in through Auth0 to use this publicly deployed development/portfolio application.
+Intake and planning are rate limited to protect paid AI/provider quotas. Flights use Duffel
+Developer Test Mode, hotels use LiteAPI Sandbox, and attractions, weather and routes use Demo
+data. These are not production booking inventories. There is no booking or payment capability.
+Production API docs and public metrics are intentionally disabled.
+
+---
+
 ## Overview
 
 **AI Travel Planning Agent** is an end-to-end AI application designed and built as a complete travel-planning workflow rather than a single chat completion.
@@ -20,17 +33,17 @@ Qwen is therefore allowed to reason over supplied candidates and produce structu
 
 ## Current Status
 
-P00–P17 are complete. P17 adds multi-provider external travel search using Duffel Flights and
-LiteAPI Hotels. Duffel Flights Developer Test, LiteAPI Hotels Sandbox, and one persistent
-mixed-provider Qwen/SSE workflow were verified on 2026-09-08.
-See [the P17 acceptance report](docs/P17_ACCEPTANCE_REPORT.md) for actual results and limitations.
-Duffel Stays is optional and NOT VERIFIED: account access was not granted during P17.
+**P00–P18 are complete.** The application is publicly deployed on Vercel and Railway.
+Real public acceptance was completed on **2026-09-09**: Auth0 login, JWT-authorized API access,
+Qwen conversational intake, persistent planning, authenticated POST SSE and restoration of the
+previous plan after restarting the Railway API. Actual GitHub-hosted backend/frontend CI passed.
 
-P18 adds Auth0 access-token verification, user-scoped resources, Redis request caps, an
-authenticated frontend, and Docker/Railway/Vercel/GitHub Actions configuration. Local execution
-and outstanding account-side gates are recorded in the [P18 acceptance report](docs/P18_ACCEPTANCE_REPORT.md).
-**P18 implementation ready; cloud/auth configuration pending.** No public deployment or
-GitHub-hosted CI success is claimed.
+P18 adds authentication and authorization, pseudonymous multi-user resource isolation,
+Redis-backed request caps, exact production CORS/trusted hosts, containerized backend deployment,
+private Railway PostgreSQL/Redis/Chroma with a Chroma volume, and a Vercel React frontend.
+This is a publicly deployed development/portfolio application, not a claim of commercial
+production readiness. See [P18 public acceptance](#p18-real-public-acceptance--2026-09-09) for
+evidence and the remaining verification boundaries.
 
 | Area | Current state |
 | --- | --- |
@@ -51,13 +64,19 @@ GitHub-hosted CI success is claimed.
 | Frontend tests | Vitest + React Testing Library + Playwright |
 | External travel search | Duffel Flights + LiteAPI Hotels; optional Duffel Stays; search-only |
 | Default travel data | Deterministic demo data |
-| Authentication | Auth0 mode implemented; real login/cloud acceptance pending; local demo mode retained |
-| Booking / payment | **Not implemented yet** |
+| Authentication / authorization | Auth0 local and Vercel login verified; RS256 API tokens; user-scoped resources |
+| Cost protection | Redis intake/planning limits and global request caps |
+| Deployment | Vercel SPA + Railway HTTPS API with private PostgreSQL, Redis and Chroma |
+| CI/CD | Hosted GitHub Actions backend/frontend jobs verified; Railway Wait for CI |
+| Cloud persistence | PostgreSQL-backed plan restored after API restart; separate Chroma restart NOT VERIFIED |
+| Booking / payment | **Not implemented** |
 
 The application remains demo-first. `TRAVEL_DATA_MODE=external` uses per-kind selectors, defaulting
 to Duffel Flights + LiteAPI Hotels. Attractions, weather, and routes stay demo. The integrations
 use real HTTP APIs, but test/sandbox data is not production inventory or bookable pricing.
 Legacy `TRAVEL_DATA_MODE=duffel` still selects Flights + Stays. There is no booking/payment flow.
+Duffel Stays remains optional and NOT VERIFIED because account access was not granted during P17.
+See [the P17 acceptance report](docs/P17_ACCEPTANCE_REPORT.md) for the earlier provider acceptance.
 
 The current flight search is **outbound one-way only**. The displayed flight price and plan
 estimate exclude a return flight; they are not a complete round-trip airfare quote.
@@ -69,6 +88,8 @@ estimate exclude a return flight; they are not a complete round-trip airfare quo
 The current user journey is:
 
 ```text
+Auth0 sign-in (public deployment)
+        ↓
 Natural-language message
         ↓
 Multi-turn conversational intake
@@ -91,7 +112,7 @@ Qwen Reviewer
         ↓
 Revision loop when required
         ↓
-Final validated TravelPlan
+Final validated TravelPlan (accepted or forced-finalized)
         ↓
 SSE progress + React UI
 ```
@@ -127,64 +148,45 @@ Only after explicit confirmation does the planning graph run.
 
 ```mermaid
 flowchart TD
-    U["User"] --> UI["React + TypeScript Web UI"]
+    U["Internet user"] --> UI["Vercel · React SPA"]
+    UI -->|"Universal Login · OAuth 2.0/OIDC + PKCE"| AUTH["Auth0"]
+    AUTH -->|"JWT API access token via SDK"| UI
+    UI -->|"Bearer token · JSON / POST SSE"| API
 
-    UI -->|"Conversation messages"| API["FastAPI"]
-    UI -->|"POST SSE confirmation stream"| API
+    subgraph RAILWAY["Railway · only API has a public domain"]
+        API["FastAPI · JWT authorization"] --> INTAKE["Conversational intake"]
+        INTAKE -->|"Explicit confirmation"| GRAPH["Persistent LangGraph + memory"]
+        GRAPH --> RAG["Hybrid RAG"]
+        RAG --> FAN["Send × 5"]
+        FAN --> F["Flights"]
+        FAN --> H["Hotels"]
+        FAN --> A["Attractions · Demo"]
+        FAN --> W["Weather · Demo"]
+        FAN --> R["Route · Demo"]
+        F & H & A & W & R --> AGG["Aggregate results"]
+        AGG --> PLANNER["Grounded Planner"]
+        PLANNER --> REVIEWER["Reviewer"]
+        REVIEWER -->|"Revise within round limit"| PLANNER
+        REVIEWER -->|"Accept / forced finalize"| FINAL["Final TravelPlan"]
+        GRAPH <--> PG["Private PostgreSQL · checkpoints + Store"]
+        INTAKE <--> PG
+        RAG <--> CHROMA["Private Chroma · /data volume"]
+        RAG <--> REDIS["Private Redis · cache + request caps"]
+        API --> REDIS
+    end
 
-    API --> INTAKE["Conversational Intake"]
-    INTAKE --> QI["Qwen Structured Requirement Extraction"]
-    QI --> DRAFT["Partial Trip Draft"]
-    DRAFT --> CONFIRM{"Explicit confirmation?"}
-    CONFIRM -->|"No"| INTAKE
-    CONFIRM -->|"Yes"| GRAPH["Persistent LangGraph"]
-
-    GRAPH --> MEM["Memory Context"]
-    MEM --> RAG["Advanced Hybrid RAG"]
-
-    RAG --> FAN["Prepare Search Tasks"]
-    FAN --> F["Flights"]
-    FAN --> H["Hotels"]
-    FAN --> A["Attractions"]
-    FAN --> W["Weather"]
-    FAN --> R["Route"]
-
-    F --> AGG["Aggregate Results"]
-    H --> AGG
-    A --> AGG
-    W --> AGG
-    R --> AGG
-
-    AGG --> PLANNER["Grounded Planner"]
-    PLANNER --> REVIEWER["Reviewer"]
-
-    REVIEWER -->|"Revise"| PLANNER
-    REVIEWER -->|"Accept / Forced finalize"| FINAL["Final TravelPlan"]
-
-    FINAL --> SSE["SSE Progress + Result"]
-    SSE --> UI
-
-    GRAPH <--> PG["PostgreSQL Checkpointer"]
-    INTAKE <--> STORE["PostgreSQL Store"]
-    MEM <--> STORE
-    RAG <--> CHROMA["ChromaDB"]
-    RAG <--> REDIS["Redis"]
-
-    F -.-> MCP["Direct Backend / MCP Backend"]
-    H -.-> MCP
-    A -.-> MCP
-    W -.-> MCP
-    R -.-> MCP
-
-    MCP --> STDIO["FastMCP STDIO\nweather + route"]
-    MCP --> HTTP["FastMCP HTTP\nflights + hotels + attractions"]
-
-    API --> METRICS["Prometheus Metrics"]
-    METRICS --> PROM["Prometheus"]
-    PROM --> GRAF["Grafana"]
-
-    API --> LOGS["Structured Loguru Logs"]
+    INTAKE & PLANNER & REVIEWER -.-> QWEN["Alibaba Cloud Qwen"]
+    F --> DUFFEL["Duffel · Developer Test"]
+    H --> LITEAPI["LiteAPI · Sandbox"]
+    GRAPH -->|"Authenticated SSE progress"| UI
+    FINAL -->|"One final SSE result"| UI
+    CI["GitHub Actions · backend + frontend"] --> WAIT["Wait for CI"]
+    WAIT -->|"Railway deployment"| API
 ```
+
+The deployed search transport is `direct`. Optional MCP transports and local Prometheus/Grafana
+remain supported development modes; they are not additional public Railway services. The graph's
+progress and final result travel through the same FastAPI POST SSE connection, not a second run.
 
 ---
 
@@ -401,7 +403,7 @@ direct
 mcp
 ```
 
-`direct` calls the deterministic providers directly.
+`direct` calls the configured demo or external providers in the backend process.
 
 `mcp` uses MCP tools while preserving the exact same graph search contract.
 
@@ -422,7 +424,8 @@ The planner never silently invents missing critical results.
 
 ## MCP tool layer
 
-P11 exposes the deterministic travel providers through MCP.
+P11 introduced MCP tools; P17 extended flights/hotels to the configured external providers while
+preserving the tool contract. Weather, route and attractions remain deterministic Demo data.
 
 ### STDIO server
 
@@ -476,6 +479,11 @@ Qwen can provide structured review scores and critique in Qwen mode, but applica
 - allowed revision actions.
 
 This prevents the model from creating an unbounded self-reflection loop.
+
+The public Cleveland → Tokyo acceptance run reached **review round 3 and forced finalization**.
+The Reviewer identified a feasibility/factual problem in the supplied Demo route estimate.
+Finalization therefore does **not** mean every plan met the quality threshold. A Reviewer can
+flag bad candidate facts, but cannot replace them with authoritative real-world routing.
 
 See [`docs/16_PLANNER_REVIEWER_REFLECTION.md`](docs/16_PLANNER_REVIEWER_REFLECTION.md).
 
@@ -631,15 +639,30 @@ FastAPI
 Qwen / LangGraph / PostgreSQL / Redis / Chroma / MCP
 ```
 
-### Local browser identity
+## Authentication and authorization
 
-In `VITE_AUTH_MODE=demo`, the frontend generates a local UUID and stores it in `localStorage`.
+The public SPA uses **Auth0 Universal Login**, OAuth 2.0/OIDC and Authorization Code + PKCE.
+The SDK obtains an **API access token**, not an ID token for authorizing API requests, and keeps
+it in memory. The central HTTP client attaches it to both JSON and POST SSE requests.
 
-This is **not authentication**.
+FastAPI validates the RS256 signature, exact issuer, API audience and expiry. Signing keys come
+from the configured issuer's JWKS endpoint and use a bounded, cached async client; token-supplied
+key URLs are not trusted. Real local login and Vercel production login were verified on 2026-09-09.
 
-In `auth0` mode the SDK keeps tokens in memory, and the backend derives ownership from a
-verified API access token. Local thread pointers are account-scoped; client IDs never authorize
-access. See [authentication and deployment](docs/25_AUTH_AND_DEPLOYMENT.md).
+Authentication identifies the caller; authorization limits access to that caller's resources.
+Validated identity becomes a deterministic pseudonymous internal `user_ref`. This is
+pseudonymization, not encryption. Thread/checkpoint namespaces, intake and preferences are
+scoped to that reference. Browser-supplied `user_id` values cannot select another account's data.
+Offline isolation tests exist; a separate real two-user production isolation test is still
+**NOT VERIFIED**.
+
+### Local/demo identity versus public identity
+
+In `VITE_AUTH_MODE=demo`, a UUID in `localStorage` supports local development only; it is
+**not authentication or authorization**. In production/Auth0 mode, identity comes only from
+the validated access token, and local thread pointers are account-scoped. No Auth0 client
+secret or backend provider key belongs in the SPA. See
+[authentication and deployment](docs/25_AUTH_AND_DEPLOYMENT.md) for configuration details.
 
 The browser stores only lightweight local metadata such as:
 
@@ -681,6 +704,8 @@ The current dashboard contains **32 panels** covering areas such as:
 - dependency readiness.
 
 Prometheus and Grafana are observers only; their failure does not make the travel-planning API unavailable.
+These are local/optional monitoring facilities. Public metrics are disabled in the deployed
+Railway API; there is no public Grafana deployment claimed here.
 
 See [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md).
 
@@ -697,7 +722,7 @@ See [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md).
 | LangGraph | Stateful workflow orchestration |
 | Pydantic v2 | Strict domain and API validation |
 | PostgreSQL | Checkpoints, history, memory/intake Store |
-| Redis | RAG cache / parent-document support |
+| Redis | RAG cache / parent documents / authenticated request caps |
 | ChromaDB | Vector retrieval |
 | Sentence Transformers | Local semantic embeddings |
 | rank-bm25 | Sparse retrieval |
@@ -728,6 +753,126 @@ See [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md).
 | Prometheus | Metrics collection |
 | Grafana | Dashboard visualization |
 
+## Identity, providers and deployment
+
+| Technology | Purpose |
+| --- | --- |
+| Auth0 | Universal Login, OIDC/PKCE and RS256 API access tokens |
+| Alibaba Cloud Qwen | Structured intake, grounded Planner and Reviewer |
+| Duffel | Flight search in Developer Test Mode; optional unverified Stays adapter |
+| LiteAPI | Hotel search in Sandbox |
+| Railway | Containerized FastAPI and private PostgreSQL/Redis/Chroma |
+| Vercel | Public React SPA deployment |
+| GitHub Actions | Hosted backend/frontend CI; Railway deployment gate |
+
+---
+
+# Public Deployment — P18
+
+The frontend is hosted on Vercel and calls the HTTPS Railway API directly, including authenticated
+POST SSE. Public deployment is separate from the [local quick start](#local-development-quick-start).
+
+## Railway services
+
+| Service | Exposure and responsibility |
+| --- | --- |
+| `api` | Only public Railway service; FastAPI, auth, graph, bootstrap and local embedding runtime |
+| `postgres` | Private; checkpoints, history, conversational state and explicit preference Store |
+| `redis` | Private; cache, parent-document support and atomic request caps |
+| `chroma` | Private; vector retrieval; persistent volume mounted at `/data` |
+
+PostgreSQL, Redis and Chroma runtime were verified in the deployed workflow. The Chroma `/data`
+volume is **CONFIGURED**; preservation across a separate **Chroma service restart is NOT VERIFIED**.
+API restart recovery verifies PostgreSQL-backed application state, not that separate Chroma test.
+
+## CI/CD
+
+Actual GitHub-hosted CI was verified on 2026-09-09. The
+[workflow](.github/workflows/ci.yml) has two jobs:
+
+- `backend`: locked dependencies, Ruff lint/format checks, mypy and pytest.
+- `frontend`: lint, typecheck, Vitest, production build and mock Playwright browser tests.
+
+Normal CI uses deterministic/demo modes and makes no real Qwen, Duffel, LiteAPI or Auth0 calls.
+Railway's GitHub-connected deployment uses **Wait for CI** before deploying. The public frontend
+is deployed on Vercel; a successful build alone is not a substitute for browser/cloud acceptance.
+
+## Bootstrap hardening and memory
+
+The P18 deployment follow-up bounds fresh RAG indexing: `RAG_BOOTSTRAP_BATCH_SIZE=8` by default,
+so the existing **77 child chunks use 10 batches**. Both deployment indexing and the embedding
+encode path are bounded. Previously all missing children were passed to one adapter operation
+(the model still had its own internal batching).
+
+The model, corpus, IDs, 384-dimensional vectors and retrieval semantics were not intentionally
+changed. Bootstrap-only model references are released before the normal runtime model is
+initialized, and safe stage diagnostics identify progress without printing secrets or corpus text.
+
+The SentenceTransformer/PyTorch runtime still needs substantial memory. The original 1 GiB
+Railway Trial allocation was insufficient for this setup; the deployed API now uses a sufficient
+memory allocation for the existing embedding runtime. A controlled **local arm64 Docker** test
+recorded the following—not Railway production measurements:
+
+| Local API memory limit | Observed result |
+| --- | --- |
+| 1 GiB | OOMKilled, exit 137, during model loading before indexing |
+| 2 GiB | Fresh indexing, readiness, planning and restart passed |
+
+The successful local container's cgroup peak was **1,543,884,800 bytes (approximately 1.44 GiB)**,
+including cgroup charges/page cache, not only Python RSS. This is not a cloud sizing guarantee;
+the fix did **not** reduce the runtime below 1 GiB. No Railway production peak or pricing is claimed.
+See the [historical bootstrap fix report](docs/P18_BOOTSTRAP_FIX_REPORT.md) for the experiment.
+
+## P18 real public acceptance — 2026-09-09
+
+The following records the project owner's completed real acceptance, not a fresh paid run made
+as part of this README update:
+
+```text
+Vercel → Auth0 → JWT → Railway FastAPI → PostgreSQL / Redis / Chroma
+       → Qwen → Duffel Flights + LiteAPI Hotels → LangGraph Planner/Reviewer
+       → authenticated POST SSE → one final TravelPlan → Vercel UI
+```
+
+| Acceptance check | Actual outcome |
+| --- | --- |
+| GitHub-hosted backend and frontend CI | VERIFIED |
+| Auth0 local and production login; API access token; FastAPI JWT validation | VERIFIED |
+| Authenticated Vercel → Railway HTTPS requests | VERIFIED |
+| Exact production CORS | VERIFIED through successful Vercel → Railway execution |
+| Trusted hosts | VERIFIED through public API access and Railway healthcheck |
+| Public `/health` and `/ready` | HTTP 200 VERIFIED |
+| `/ready` service summaries | `postgresql=ok`, `redis=ok`, `chroma=ok`, `qwen=ok`, `duffel=ok`, `liteapi=ok` |
+| Real public conversational intake and Qwen extraction | VERIFIED |
+| Persistent planning and authenticated POST SSE | VERIFIED; exactly one final TravelPlan reached the frontend |
+| PostgreSQL-backed application state across API restart | VERIFIED; prior plan restored without rerunning the graph |
+
+The public frontend, `/health` and `/ready` also returned HTTP 200 during the README-only check.
+The readiness endpoint actively probes PostgreSQL, Redis and Chroma; its Qwen/Duffel/LiteAPI
+statuses check configuration/runtime initialization, **not paid external requests**. The real
+external-call evidence comes from the completed planning acceptance above.
+
+In that **Cleveland → Tokyo** run, the frontend displayed Flights as **“Duffel Test · Test data”**,
+Hotels as **“LiteAPI Sandbox”**, and Attractions, Weather and Route as **“Demo”**. These are
+test/sandbox search results, not production airfare or hotel availability.
+
+The Demo route produced a logically invalid cross-city/cross-continent estimate. Qwen Reviewer
+identified the feasibility/factual issue, but the run reached **round 3 and forced finalization**;
+delivery of a final plan is not proof that it passed the review threshold. Application code
+controls the round maximum, scoring policy and forced finalization. Demo routes are not
+authoritative, and the flight estimate remains outbound one-way only, without return airfare.
+
+After the run, **only the Railway API service was restarted**. `/ready` returned HTTP 200 again;
+the same authenticated user refreshed Vercel and recovered the previous Tokyo TravelPlan without
+rerunning the graph. Chroma itself was not restarted. A separate real two-user production
+isolation test also remains **NOT VERIFIED**.
+
+The [deployment guide](docs/25_AUTH_AND_DEPLOYMENT.md),
+[P18 local acceptance report](docs/P18_ACCEPTANCE_REPORT.md) and
+[bootstrap fix report](docs/P18_BOOTSTRAP_FIX_REPORT.md) preserve earlier implementation-stage
+evidence. Their cloud-pending/old memory-allocation statements describe that historical stage;
+this dated README section records the subsequent public acceptance and current deployment state.
+
 ---
 
 # Repository Structure
@@ -736,7 +881,9 @@ See [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md).
 .
 ├── app/
 │   ├── api/                 # FastAPI routes
+│   ├── auth/                # JWT identity, resource scoping, request caps
 │   ├── core/                # settings, lifecycle, resources
+│   ├── deployment/          # bounded startup bootstrap + container entry point
 │   ├── domain/              # travel-domain models
 │   ├── graphs/              # LangGraph workflow + nodes
 │   ├── intake/              # conversational intake
@@ -760,6 +907,9 @@ See [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md).
 ├── reports/                 # generated evaluation reports
 ├── scripts/                 # setup/check/index/evaluation helpers
 ├── tests/                   # backend tests
+├── .github/workflows/       # hosted CI
+├── Dockerfile               # Railway API image
+├── railway.toml             # API deployment / readiness configuration
 ├── docker-compose.yml
 ├── pyproject.toml
 └── README.md
@@ -767,7 +917,13 @@ See [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md).
 
 ---
 
-# Quick Start
+# Local Development Quick Start
+
+Local development does not require Railway, Vercel or an Auth0 account. Repository defaults
+retain `AUTH_MODE=demo`, `VITE_AUTH_MODE=demo`, deterministic reasoning and demo travel data.
+The optional Qwen step below enables the full natural-language conversation and makes paid
+requests; omit it for offline checks and deterministic planning. Local UUID identity must not
+be used to expose an unauthenticated public service.
 
 ## Prerequisites
 
@@ -800,6 +956,17 @@ cd frontend
 npm ci
 cd ..
 ```
+
+Create local environment files only if missing; these commands do not overwrite existing files:
+
+```bash
+test -e .env || cp .env.example .env
+test -e frontend/.env || cp frontend/.env.example frontend/.env
+```
+
+Keep backend secrets only in the ignored root `.env`; frontend configuration contains public
+values only. If you previously enabled Auth0/external providers, review those local settings
+before following the demo flow. Start Docker Desktop before the next command.
 
 ---
 
@@ -847,7 +1014,7 @@ uv run python scripts/evaluate_advanced_rag.py
 
 ---
 
-## 3. Configure Qwen for the full conversational experience
+## 3. Optional: configure Qwen for the full conversational experience
 
 The complete P15/P16 conversational experience requires Qwen mode.
 
@@ -894,7 +1061,7 @@ uv run uvicorn app.main:app \
   --no-access-log
 ```
 
-Useful endpoints:
+Local endpoints (docs/metrics require their development toggles; they are disabled in production):
 
 ```text
 http://127.0.0.1:8000/docs
@@ -991,7 +1158,7 @@ Do **not** run `docker compose down -v` unless you intentionally want to erase l
 | --- | --- | --- |
 | GET | `/health` | Liveness |
 | GET | `/ready` | Dependency readiness |
-| GET | `/metrics` | Prometheus metrics |
+| GET | `/metrics` | Optional local Prometheus metrics; disabled in production |
 | POST | `/api/v1/plans/mock` | Deterministic planning MVP |
 | POST | `/api/v1/agents/plans` | Non-persistent agent planning |
 | POST | `/api/v1/agents/threads/{thread_id}/plans` | Persistent planning |
@@ -1003,6 +1170,8 @@ Do **not** run `docker compose down -v` unless you intentionally want to erase l
 | POST | `/api/v1/agents/threads/{thread_id}/conversation/confirm` | Confirm and plan |
 | POST | `/api/v1/agents/threads/{thread_id}/conversation/confirm/stream` | Confirm and plan via SSE |
 | POST | `/api/v1/agents/threads/{thread_id}/conversation/reset` | Reset current intake |
+| GET | `/api/v1/me/preferences` | Authenticated caller's explicit long-term preferences |
+| DELETE | `/api/v1/me/preferences/{preference_id}` | Delete the authenticated caller's preference |
 | GET | `/api/v1/users/{user_id}/preferences` | List explicit long-term preferences |
 | DELETE | `/api/v1/users/{user_id}/preferences/{preference_id}` | Delete one preference |
 | GET | `/api/v1/rag/status` | RAG diagnostic summary |
@@ -1011,11 +1180,18 @@ Do **not** run `docker compose down -v` unless you intentionally want to erase l
 | GET | `/api/v1/llm/status` | LLM configuration status |
 | GET | `/api/v1/travel-data/status` | Local travel-data configuration status; no remote probe |
 
-The diagnostic/status APIs are intended for local development. Authentication has not yet been implemented.
+In production/Auth0 mode, all planning, conversation, state/history, preference and diagnostic
+routes above require a valid API access token. Ownership comes from the verified principal,
+not a supplied `user_id`; prefer `/me/preferences` for authenticated use. `/health` and `/ready`
+remain public safe summaries. Production API docs and the metrics endpoint are disabled.
 
 ---
 
 # Conversational API Example
+
+These localhost examples are for **demo authentication mode only**. Production requests require
+Auth0 API access-token authorization; the deployed frontend handles it without copying tokens
+into shell commands. A browser UUID or the example `user_id` is not a production credential.
 
 Send the first message:
 
@@ -1062,6 +1238,8 @@ When `can_confirm=true`, send the current `draft_fingerprint` to the confirmatio
 
 # Streaming Example
 
+This is also a localhost/demo-auth example; the public SPA sends an authenticated POST instead.
+
 ```bash
 curl --noproxy '*' -N \
   --request POST \
@@ -1103,11 +1281,12 @@ uv run mypy app
 uv run pytest -q
 ```
 
-P17 multi-provider offline result, executed 2026-09-08:
+P18 bootstrap follow-up offline result, recorded on 2026-09-08 in the
+[bootstrap fix report](docs/P18_BOOTSTRAP_FIX_REPORT.md):
 
 ```text
-621 passed
-16 skipped
+754 passed
+17 skipped
 ```
 
 Run infrastructure integration tests explicitly:
@@ -1117,12 +1296,12 @@ RUN_INTEGRATION_TESTS=1 \
 uv run pytest -m integration -q
 ```
 
-Current validated result:
+Local infrastructure result from that same report (not a cloud/provider test):
 
 ```text
-10 passed
+11 passed
 1 skipped
-626 deselected
+759 deselected
 ```
 
 Real Qwen tests are gated separately to avoid accidental API usage and cost.
@@ -1143,7 +1322,7 @@ These commands make real external requests. The ordinary `uv run pytest -q` and
 `RUN_INTEGRATION_TESTS=1` suites do not contact Duffel or LiteAPI. The LiteAPI checker requires its
 explicit gate and a configured sandbox key; zero rates is a failure, not fabricated success.
 
-Final real acceptance on 2026-09-08: LiteAPI gate passed with 4 mapped sandbox hotels;
+Earlier P17 real acceptance on 2026-09-08: LiteAPI gate passed with 4 mapped sandbox hotels;
 one Duffel Flights regression returned 70 raw offers; one real persistent mixed Qwen/SSE path
 passed with 5 flight and 10 hotel candidates per Planner call. Planner and Reviewer each ran
 three times within the configured limit. Existing metrics reported 13,137 input tokens and
@@ -1151,6 +1330,10 @@ three times within the configured limit. Existing metrics reported 13,137 input 
 No Stays request was made. These are test/sandbox results, not production real-time inventory.
 The [complete report](docs/P17_ACCEPTANCE_REPORT.md) includes the paid gates; do not repeat them
 as ordinary regression tests.
+
+P18 hosted CI and public authenticated acceptance were subsequently verified on 2026-09-09;
+see [the dated public acceptance section](#p18-real-public-acceptance--2026-09-09). That does not
+turn these explicitly gated real-provider commands into ordinary regression checks.
 
 ---
 
@@ -1166,12 +1349,13 @@ npm run build
 npm run test:e2e
 ```
 
-Current validated baseline:
+P18 local frontend baseline, recorded on 2026-09-08 in the
+[local acceptance report](docs/P18_ACCEPTANCE_REPORT.md):
 
 ```text
 Vitest:
-11 test files passed
-60 tests passed
+14 test files passed
+77 tests passed
 
 Playwright:
 2 mock browser E2E tests passed
@@ -1215,13 +1399,17 @@ The current codebase deliberately enforces several safety boundaries.
 
 ## Secrets
 
-Real secrets must remain in ignored backend environment files.
+Real secrets must remain in ignored backend environment files for local development or private
+backend service variables on Railway. Never put them in Git, Docker build arguments or a browser
+bundle. The SPA uses a public Auth0 client ID; it does not need a client secret.
 
 The frontend never needs:
 
 ```text
 QWEN_API_KEY
 DASHSCOPE_API_KEY
+DUFFEL_ACCESS_TOKEN
+LITEAPI_API_KEY
 PostgreSQL DSN
 Redis credentials
 ```
@@ -1276,8 +1464,32 @@ In demo mode, the browser uses a local UUID only as a demo identity.
 
 It is not authentication or authorization.
 
-Auth0 mode instead requires a verified RS256 API token and scopes checkpoints, conversations
-and preferences by its pseudonymous principal. Real Auth0 browser login remains NOT VERIFIED.
+Production Auth0 mode requires a verified RS256 API access token: exact issuer, API audience,
+signature using cached issuer JWKS and expiry checks. Checkpoints, conversations and preferences
+are scoped to the authenticated pseudonymous principal. Real local and production login passed;
+separate two-user production isolation remains NOT VERIFIED, distinct from offline isolation tests.
+
+## HTTP exposure and cost protection
+
+Production uses exact HTTPS CORS origins, explicit TrustedHost protection and these security
+headers, confirmed on the public backend:
+
+```text
+X-Content-Type-Options: nosniff
+Referrer-Policy: no-referrer
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+```
+
+Public API docs and metrics are disabled. `/health` and `/ready` expose safe public summaries;
+protected APIs still require a valid token. CORS and headers complement authentication, not replace it.
+
+Redis-backed intake limits, planning limits and global cost-protection request caps bound
+admission to expensive operations. Exhausted capacity returns HTTP **429 before work/SSE starts**;
+the frontend displays a safe message without exposing global quota internals. Redis admission
+failure returns 503 instead of bypassing the cap. These are request limits, **not a guaranteed
+currency spending ceiling or public service SLA**; provider billing controls remain important.
+
+No penetration testing, compliance certification or commercial production-readiness claim is made.
 
 ---
 
@@ -1287,6 +1499,9 @@ This project distinguishes between **reasoning** and **travel facts**.
 
 ### Real
 
+- Vercel frontend and Railway HTTPS backend deployment
+- Auth0 login and JWT-authorized user-scoped access
+- Hosted GitHub Actions CI
 - Qwen API reasoning in Qwen mode
 - Sentence Transformer embeddings
 - PostgreSQL persistence
@@ -1295,16 +1510,21 @@ This project distinguishes between **reasoning** and **travel facts**.
 - LangGraph orchestration
 - MCP transports
 - SSE
-- Prometheus/Grafana
+- Prometheus/Grafana in the optional local monitoring stack
 - React web application
-- Duffel HTTP transport when explicitly enabled and supplied with a valid token
+- Duffel and LiteAPI HTTP integrations, verified with test/sandbox data
+
+The deployment is real; the travel inventory is deliberately mixed. The public acceptance used
+**Duffel Developer Test Mode** for flights and **LiteAPI Sandbox** for hotels. Neither demonstrates
+production availability or bookable pricing. PostgreSQL-backed state recovery after API restart
+is verified; a separate Chroma restart-persistence test is not.
 
 ### Configurable
 
 - flights: demo by default; Duffel test/live only when explicitly enabled
 - hotels: demo by default; LiteAPI sandbox/production when selected; Duffel Stays optional
 
-### Always demo / deterministic in P17
+### Demo / deterministic data retained in P18
 
 - attraction search data
 - weather data
@@ -1326,23 +1546,28 @@ operator-enabled fallback is labeled `Demo Fallback` rather than appearing exter
 
 # Current Limitations
 
-The following capabilities are intentionally not implemented yet:
+The public deployment has these limits:
 
-- verified live-mode flight inventory (the first acceptance target is Developer Test Mode),
-- guaranteed Duffel Stays access (it is account-dependent),
-- real weather data,
-- real map / route data,
-- live attraction availability,
-- booking,
-- payments,
-- verified real Auth0 login and cloud two-user acceptance (offline isolation tests exist),
-- verified production TLS and public deployment,
-- observed GitHub-hosted CI (workflow and local equivalent checks exist),
-- Last-Event-ID SSE replay,
-- true model-token streaming,
-- distributed locking for concurrent mutation of the same thread.
-
-The current same-user/same-thread conversational mutation path is designed for serialized requests.
+- Duffel Flights is in **Developer Test Mode**, not verified production flight inventory.
+- LiteAPI Hotels is in **Sandbox**, not production hotel availability.
+- Flight search is **outbound one-way only**; the displayed estimate excludes return airfare.
+- Hotel search currently supports **one room for one or two adults**; other party sizes are
+  unsupported. Dates use the project's inclusive-day/night contract; separately payable fees
+  are not necessarily included in the quoted total.
+- Attractions, weather and routes remain **deterministic Demo data**. The Cleveland → Tokyo
+  acceptance exposed invalid cross-city/cross-continent Demo route semantics.
+- A final plan may be **forced-finalized at the maximum review round**, without meeting the
+  quality threshold. The Reviewer cannot repair incorrect supplied facts by inventing replacements.
+- Duffel Stays is optional and **NOT VERIFIED**; account access was not granted.
+- There is **no booking, payment, public production travel SLA or commercial-readiness claim**.
+- SSE has no Last-Event-ID replay and does not stream real model tokens.
+- Same-user/same-thread mutations are intended to be serialized; there is no distributed
+  mutation lock. The deployment remains limited to one API worker/replica.
+- Chroma's `/data` volume is **CONFIGURED**, but a separate Chroma service restart-persistence
+  test is **NOT VERIFIED**. API restart recovery is a different, passed test.
+- Real **two-user production isolation** remains **NOT VERIFIED**; offline isolation tests exist.
+- The local embedding runtime has a substantial memory footprint; the observed local 2 GiB
+  success is not a Railway capacity guarantee, and 1 GiB did not pass.
 
 ---
 
@@ -1370,7 +1595,7 @@ The project was built incrementally so that each major architectural capability 
 | P15 | Conversational intake | Multi-turn natural-language requirements |
 | P16 | Web chat frontend | Complete browser conversation-to-itinerary UX |
 | P17 | Multi-provider external travel data | Duffel Flights + LiteAPI Hotels, provenance, no booking |
-| P18 | Authentication and deployment implementation | Local verification; real Auth0/CI/cloud acceptance pending |
+| P18 | Authentication, authorization & cloud deployment | Auth0 + GitHub Actions + Railway + Vercel; authenticated cloud SSE and persistent user-scoped backend |
 
 ---
 
@@ -1397,6 +1622,9 @@ Selected milestone commits:
 | P14 | `2545535` | Grounded Qwen reasoning |
 | P15 | `5a75989` | Conversational trip intake |
 | P16 | `eb3d678` | React web chat travel planner |
+| P17 | `aa5d8aa` | Multi-provider travel search |
+| P18 | `b249bb5` | Secure auth and deployment infrastructure |
+| P18 follow-up | `b9e9902` | Deployment hardening: bounded RAG bootstrap memory |
 
 These commits document the incremental engineering history of this project.
 
@@ -1424,32 +1652,33 @@ These commits document the incremental engineering history of this project.
 | React web frontend | [`docs/23_WEB_CHAT_FRONTEND.md`](docs/23_WEB_CHAT_FRONTEND.md) |
 | External travel data | [`docs/24_EXTERNAL_TRAVEL_DATA.md`](docs/24_EXTERNAL_TRAVEL_DATA.md) |
 | Authentication and deployment | [`docs/25_AUTH_AND_DEPLOYMENT.md`](docs/25_AUTH_AND_DEPLOYMENT.md) |
-| P18 executed acceptance and pending gates | [`docs/P18_ACCEPTANCE_REPORT.md`](docs/P18_ACCEPTANCE_REPORT.md) |
+| P18 historical local acceptance | [`docs/P18_ACCEPTANCE_REPORT.md`](docs/P18_ACCEPTANCE_REPORT.md) |
+| P18 bootstrap hardening and local memory evidence | [`docs/P18_BOOTSTRAP_FIX_REPORT.md`](docs/P18_BOOTSTRAP_FIX_REPORT.md) |
 | RAG evaluation | [`docs/evaluation/P10_RAG_EVALUATION.md`](docs/evaluation/P10_RAG_EVALUATION.md) |
+
+The P18 guide/reports retain their original implementation-stage status. For the subsequent
+2026-09-09 cloud results and remaining unverified items, use
+[P18 real public acceptance](#p18-real-public-acceptance--2026-09-09) above.
 
 ---
 
 # Roadmap
 
-## P18 — Authentication & deployment
+## P19 — Portfolio polish / product quality
 
-Implemented: Auth0 mode, protected user/thread resources, Redis admission, production
-configuration validation, authenticated JSON/POST SSE, container bootstrap, deployment artifacts
-and an offline GitHub Actions workflow. Real Auth0 login, observed CI, Railway/Vercel HTTPS
-deployment and persistence acceptance remain pending. Follow the exact manual checklist in
-[`docs/25_AUTH_AND_DEPLOYMENT.md`](docs/25_AUTH_AND_DEPLOYMENT.md); do not treat this as P18 complete.
+P18 is complete. Potential future scope only; none of this is implemented by this README update:
 
-## P19 — Portfolio polish
-
-Potential scope:
-
-- architecture diagram assets,
-- real application screenshots,
+- correct the Demo route semantics revealed by public acceptance,
+- review forced-finalize UI state and improve it if needed,
+- polish architecture diagrams and capture public deployment screenshots,
 - short demo GIF/video,
-- README visual polish,
-- public-repository security audit,
-- release notes,
-- portfolio/resume packaging.
+- GitHub README visual polish and release notes,
+- optional custom domain,
+- public security review,
+- real two-user production isolation acceptance,
+- separate Chroma restart-persistence acceptance,
+- cost/memory optimization,
+- potentially replace Demo route/weather/attraction data with real providers.
 
 ---
 
@@ -1564,16 +1793,27 @@ It explores how to build an AI system where:
 - users explicitly approve persistent memory and planning actions,
 - streaming does not duplicate graph execution,
 - metrics remain operationally safe,
+- provider adapters preserve truthful data provenance,
+- authenticated users access only their scoped state,
+- Redis request caps protect expensive work,
+- hosted CI gates deployment to a public cloud backend,
 - and the UI reflects real backend state instead of simulating intelligence in the browser.
 
-The result is a single system that connects AI reasoning, backend engineering, retrieval, distributed-style tool boundaries, persistence, observability, and frontend product design.
+The project connects AI reasoning and grounding, RAG, parallel graph execution, provider
+abstraction, persistence, authentication and authorization, rate limiting, CI/CD, cloud deployment,
+observability and frontend product design. The public acceptance also exposes concrete data-quality
+and operational limits; those remain part of the engineering work, not hidden success claims.
 
 ---
 
 # Disclaimer
 
-This repository is currently a local development and portfolio project.
+This is a **publicly deployed development/portfolio application**, with local development support.
 
-Travel-provider results are deterministic sample data unless explicitly replaced by a future real-data provider. The application does not provide live booking inventory, does not process payments, and should not be used as an authoritative source for travel prices, availability, weather, opening hours, transport notices, or accessibility information.
+Travel data has mixed provenance: Duffel Test flights and LiteAPI Sandbox hotels use real external
+integrations but are **not production booking inventory**; attractions, weather and routes are
+Demo data. There is no booking or payment capability. Do not treat the application as an
+authoritative source of prices, availability, routing, weather, opening hours, transport notices
+or accessibility information, or as a commercial travel service with a production SLA.
 
 Always verify important travel information with authoritative providers before making real-world decisions.
