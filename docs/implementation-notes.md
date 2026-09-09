@@ -1004,3 +1004,51 @@ Record deviations from source pseudocode and important engineering decisions her
   cloud persistence/private exposure are **NOT VERIFIED**. See `P18_ACCEPTANCE_REPORT.md` for
   all 101 report items and `25_AUTH_AND_DEPLOYMENT.md` for exact beginner setup steps.
   **P18 implementation ready; cloud/auth configuration pending.**
+
+### 2026-09-08 — Focused Railway bootstrap reliability follow-up
+
+- Started clean at committed P18 `b249bb5`; no P19, commit, push, cloud deployment, secret
+  inspection, private-service exposure or data-volume deletion. User-reported Railway model
+  reloads/disappearing process are compatible with forceful termination, but OOM is not confirmed.
+- Confirmed source path: bootstrap supplied every missing child to one upsert; the advanced
+  adapter supplied all texts to one encode_document/encode invocation. The official model API
+  internally defaults to batch_size=32, so this is not proof of a simultaneous 77-item tensor batch.
+- Actual change: RAG_BOOTSTRAP_BATCH_SIZE defaults to 8, accepts integer 1–32, drives stable
+  corpus-order missing-only writes and explicit deployment encode batch size. Runtime retrieval,
+  query encoding and the P10 evaluation/indexing path retain their prior defaults. islice is used
+  instead of Python3.12-only batched because the repository type-check target includes Python3.11.
+- Source intent (same knowledge/index semantics) is preserved: same model/revision/dimension,
+  corpus, child IDs, documents, metadata, collection and ranking logic. Offline full adapter
+  comparisons match all records. One actual cached-model comparison of all 77 x 384 vectors
+  passed rtol=1e-5/atol=1e-6; measured maximum absolute difference 8.568167686462402e-08.
+  This is numeric equivalence evidence on this host, not cross-platform bitwise identity or a
+  new P10 retrieval-quality result. No texts or vectors were printed.
+- Safe flushed stages cover every boundary/batch; failures expose only phase/class. No raw
+  exception message, repr, traceback, DSN, token or chunk data is logged by the new diagnostics.
+- Bootstrap model/vector/corpus ownership ends in an inner coroutine before one GC pass and
+  runtime creation. Cyclic weakref and actual runtime-factory tests verify the old model is gone
+  before the next load. Chroma gets embedding_function=None, not the bootstrap model function.
+  Native allocator RSS release is not guaranteed by GC, and a killed process cannot log cleanup.
+- First ordinary integration rerun exposed two pre-existing fixtures inheriting local Auth0
+  configuration (401, not a RAG error). Test-process demo auth isolation now parallels existing
+  deterministic travel/LLM isolation unless RUN_AUTH0_INTEGRATION_TESTS=1 is explicit. Application
+  auth behavior and production validation are unchanged.
+- Local fresh-index checker uses an isolated, non-public Chroma/tmpfs and a 1 GiB/no-extra-swap API
+  container, rather than reusing the already indexed local collection. It verifies 77 children,
+  ten batches, continued /ready success, no reindex after restart and graceful shutdown, and
+  reads the kernel memory high-water mark only if available. Existing named volumes are retained.
+- `/ready`, Railway private networking and deployment topology remain unchanged. A cross-region
+  private mesh is supported; additional latency is possible, but is not a diagnosed crash cause.
+  Official references and exact local results are in `P18_BOOTSTRAP_FIX_REPORT.md`.
+- Actual local1GiB/no-extra-swap fresh-index acceptance failed: OOMKilled=true,exit137,last
+  stage embedding_load_start, before any indexing batch. A separately explicit local2GiB run
+  passed77 children/10 batches,/ready,demo plan,stable probes,restart(no reindex) and graceful
+  shutdown. Kernel cgroup memory.peak was1,543,884,800bytes on arm64, not a Railway/RSS metric.
+  This capacity limitation remains unresolved at1GiB; Railway settings/billing were not changed.
+  Current Transformers ignores legacy low_cpu_mem_usage; no ineffective flag/precision/model
+  change was added. The new diagnostics make this pre-index failure visible.
+- Final gates: Ruff/format passed (382 files); mypy passed (170 app files); targeted tests
+  52 passed; full offline suite 754 passed/17 skipped; ordinary local integration 11 passed,
+  1 skipped,759 deselected. Both isolated test runs cleaned up their containers/tmpfs; all five
+  existing named volumes remain. Git diff whitespace check passed; HEAD remains b249bb5 and
+  all 16 fix files are unstaged. No commit, push or Railway resource change.

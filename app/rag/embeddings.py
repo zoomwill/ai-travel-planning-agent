@@ -79,9 +79,13 @@ class SentenceTransformerEmbeddingBackend:
         model: SentenceTransformerModel,
         *,
         normalize_embeddings: bool,
+        batch_size: int | None = None,
     ) -> None:
+        if batch_size is not None and (type(batch_size) is not int or batch_size < 1):
+            raise ValueError("embedding batch size must be a positive integer")
         self._model = model
         self._normalize_embeddings = normalize_embeddings
+        self._batch_size = batch_size
         get_dimension = getattr(model, "get_embedding_dimension", None)
         if callable(get_dimension):
             dimension = get_dimension()
@@ -103,6 +107,7 @@ class SentenceTransformerEmbeddingBackend:
         normalize_embeddings: bool,
         local_files_only: bool,
         revision: str | None = None,
+        batch_size: int | None = None,
     ) -> "SentenceTransformerEmbeddingBackend":
         """Load one public SentenceTransformer model on an explicit code path."""
 
@@ -117,6 +122,7 @@ class SentenceTransformerEmbeddingBackend:
         return cls(
             cast(SentenceTransformerModel, model),
             normalize_embeddings=normalize_embeddings,
+            batch_size=batch_size,
         )
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
@@ -124,6 +130,10 @@ class SentenceTransformerEmbeddingBackend:
 
         if not texts:
             return []
+        # Leave normal indexing/retrieval defaults unchanged; bootstrap opts into smaller batches.
+        batch_options: dict[str, object] = (
+            {} if self._batch_size is None else {"batch_size": self._batch_size}
+        )
         method = getattr(self._model, "encode_document", None)
         if callable(method):
             result = method(
@@ -131,6 +141,7 @@ class SentenceTransformerEmbeddingBackend:
                 convert_to_numpy=True,
                 normalize_embeddings=self._normalize_embeddings,
                 show_progress_bar=False,
+                **batch_options,
             )
         else:
             result = self._model.encode(
@@ -138,6 +149,7 @@ class SentenceTransformerEmbeddingBackend:
                 convert_to_numpy=True,
                 normalize_embeddings=self._normalize_embeddings,
                 show_progress_bar=False,
+                **batch_options,
             )
         vectors = np.asarray(result, dtype=np.float32)
         self._validate_shape(vectors, expected_count=len(texts))

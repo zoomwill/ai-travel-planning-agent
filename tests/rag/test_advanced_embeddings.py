@@ -3,6 +3,7 @@
 import math
 
 import numpy as np
+import pytest
 
 from app.rag.embeddings import (
     DeterministicHashEmbeddingBackend,
@@ -61,3 +62,32 @@ def test_sentence_transformer_adapter_uses_query_and_document_methods() -> None:
     assert backend.dimensions == 3
     assert model.document_calls == 1
     assert model.query_calls == 1
+
+
+@pytest.mark.parametrize("batch_size", [None, 1, 8, 32])
+@pytest.mark.parametrize("fallback", [False, True])
+def test_bootstrap_encode_batch_is_explicit_without_changing_vectors(batch_size, fallback):
+    calls = []
+
+    def encode(texts, **kwargs):
+        calls.append(kwargs)
+        return np.asarray([[1.0, 0.0, 0.0] for _ in texts])
+
+    model = FakeSentenceTransformer()
+    if fallback:
+        model.encode_document = None
+        model.encode = encode
+    else:
+        model.encode_document = encode
+    backend = SentenceTransformerEmbeddingBackend(
+        model, normalize_embeddings=True, batch_size=batch_size
+    )
+    assert backend.embed_documents(["one", "two"]) == [[1.0, 0.0, 0.0]] * 2
+    assert calls == [
+        {
+            "convert_to_numpy": True,
+            "normalize_embeddings": True,
+            "show_progress_bar": False,
+            **({} if batch_size is None else {"batch_size": batch_size}),
+        }
+    ]

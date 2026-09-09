@@ -318,3 +318,76 @@ named volumes. Do not run `docker compose down -v` during this phase.
 Remaining architecture limits include one worker/replica, no distributed same-thread mutation
 lock, conservative fixed-window quotas, no full server-side thread discovery, no public Grafana,
 no cloud MCP deployment and no new token replay/streaming capabilities. No P19 work is included.
+
+## 13. Railway first-index bootstrap troubleshooting
+
+The focused follow-up to committed P18 (`b249bb5`) preserves `/ready`, the private services and
+all P10 content/model/retrieval choices. Set `RAG_BOOTSTRAP_BATCH_SIZE=8` (default; integer 1–32)
+on the API service. This controls deployment document writes **and** their model encode batches;
+normal runtime query/indexing defaults are not changed. A fresh 77-child corpus takes ten
+sequential batches: nine of eight and a final five. Existing IDs are skipped in stable corpus order.
+
+The old adapter accepted all missing children in one call. Sentence Transformers still had its
+own default internal batch size of 32; it was not necessarily computing all 77 simultaneously.
+Both `encode_document` and the `encode` fallback support an explicit `batch_size`.
+[Official encoding API](https://sbert.net/docs/package_reference/sentence_transformer/model.html).
+
+Flushed `BOOTSTRAP stage=...` lines now identify PostgreSQL, model load, corpus, Chroma connection,
+existing IDs, every batch start/complete, final count, Redis, manifest, memory release and completion.
+They contain only fixed stage names and bounded integer counts. For a normal Python exception,
+the entry point prints only phase and class, for example:
+
+```text
+FAIL deployment startup phase=bootstrap error_type=ConnectError
+```
+
+No exception text, traceback, DSN, credentials or chunk text is printed. The last stage helps
+locate the failed operation. SIGKILL/OOM cannot reliably execute Python cleanup or print a final
+failure line; absence of that line alone does **not** prove OOM. Check platform exit/OOM events
+alongside the stage timeline. Repeated weights progress may span container restarts; it does not
+prove eleven simultaneously live models in one process.
+
+Bootstrap owns the temporary model/vector/corpus in an inner coroutine, then performs one cyclic
+GC pass after that coroutine has returned. Only afterwards may `create_app` and lifespan load
+the normal runtime model. Tests include cyclic weak references and the actual runtime factory
+boundary. This proves reference release in the test, not that native allocators immediately
+return all resident pages to the OS. No private PyTorch API or per-request GC is used.
+
+Railway private networking is scoped to a project/environment and uses a private mesh; services
+do not need public domains for cross-region communication. Region separation can increase
+round-trip time, particularly across multiple sequential batches, but is not evidence of the
+reported crash. Keep PostgreSQL, Redis and Chroma private; do not replace `/ready` with `/health`.
+[Railway private networking](https://docs.railway.com/networking/private-networking/how-it-works).
+
+### Local first-start reproduction
+
+Start Docker Desktop and the existing core services. The build command prepares the unchanged
+model in the image. The checker creates an **isolated private test Chroma** with temporary tmpfs
+data, keeps the normal collection name, and caps its temporary API container at 1 GiB with no
+additional swap. It does not clear the existing Chroma collection or delete any named volume.
+
+```bash
+docker build -t travel-planner:p18 .
+uv run python scripts/check_deployment.py --fresh-index
+```
+
+**Observed limitation:** the local 1 GiB/no-extra-swap test was OOM-killed (137) during
+`embedding_load_start`, before any indexing batch. Batching cannot remove that model-load
+working-set requirement. The existing Railway 1 GB setting has not been changed and is not
+claimed fixed. For a separate **local-only** capacity comparison, explicitly run:
+
+```bash
+uv run python scripts/check_deployment.py --fresh-index --memory-mib 2048
+```
+
+This does not provision or resize Railway. Review actual platform OOM events and billing before
+choosing any cloud resource change. A local 2 GiB result is not a production capacity guarantee.
+The installed Transformers version discards the old `low_cpu_mem_usage` argument; adding that
+flag would not be an effective fix. Precision, quantization and model choice are not changed.
+
+Success requires all 77 children, exactly ten batches, bootstrap completion, a served `/ready`
+200, a deterministic plan, repeated readiness checks, an idempotent restart and graceful shutdown.
+Only the test containers/tmpfs are removed afterwards. If Linux cgroup v2 `memory.peak` is
+available, the script reports its observed high-water bytes; that includes cgroup charges/page
+cache, not just Python RSS, and is not a Railway measurement. Missing measurement is labeled
+NOT AVAILABLE. See [the follow-up report](P18_BOOTSTRAP_FIX_REPORT.md) for actual results.

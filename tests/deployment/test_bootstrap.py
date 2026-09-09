@@ -77,7 +77,7 @@ async def test_bootstrap_twice_preserves_index(monkeypatch, tmp_path):
     await module.bootstrap(settings)
     second = {p.name: p.read_bytes() for p in (tmp_path / "advanced-v1").iterdir()}
     assert first == second
-    assert vector.upserts == 1
+    assert vector.upserts == 10
     assert len(setup_calls) == 4 and all(call.await_count == 1 for call in setup_calls)
     assert parent_store.put_many.await_count == 2
     assert redis.aclose.await_count == 2

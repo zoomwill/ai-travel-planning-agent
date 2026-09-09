@@ -133,6 +133,7 @@ class Settings(BaseSettings):
     rag_embedding_device: str = Field(default="cpu", min_length=1, max_length=32)
     rag_embedding_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
     rag_embedding_normalize: bool = True
+    rag_bootstrap_batch_size: int = Field(default=8, ge=1, le=32)
     rag_parent_chunk_size: int = Field(default=1200, gt=0)
     rag_parent_chunk_overlap: int = Field(default=150, ge=0)
     rag_child_chunk_size: int = Field(default=350, gt=0)
@@ -154,6 +155,15 @@ class Settings(BaseSettings):
         extra="ignore",
         hide_input_in_errors=True,
     )
+
+    @field_validator("rag_bootstrap_batch_size", mode="before")
+    @classmethod
+    def validate_bootstrap_batch_integer(cls, value: object) -> object:
+        """Allow integer environment strings but not boolean or floating-point batch sizes."""
+
+        if isinstance(value, (bool, float)):
+            raise ValueError("bootstrap batch size must be an integer")
+        return value
 
     @model_validator(mode="after")
     def validate_security(self) -> "Settings":

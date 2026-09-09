@@ -25,3 +25,39 @@ def test_readiness_deadline_and_success(monkeypatch):
     monkeypatch.setattr(checker.time, "monotonic", lambda: 0)
     client.get = lambda *args, **kwargs: httpx.Response(200)
     checker.wait_ready(client)
+
+
+def test_fresh_bootstrap_requires_all_batches_and_release():
+    lines = ["BOOTSTRAP stage=chroma_existing_ids_ready children=77 batches=10"]
+    for index, count in enumerate([8] * 9 + [5], start=1):
+        for stage in ("chroma_index_batch_start", "chroma_index_batch_complete"):
+            lines.append(f"BOOTSTRAP stage={stage} batch={index} batches=10 children={count}")
+    lines.extend(
+        [
+            "BOOTSTRAP stage=chroma_ready children=77",
+            "BOOTSTRAP stage=memory_released",
+            "BOOTSTRAP stage=complete",
+        ]
+    )
+    logs = "\n".join(lines)
+    assert checker.fresh_batch_counts(logs) == [8] * 9 + [5]
+    for broken in (
+        logs.replace("children=77", "children=76"),
+        logs + "\n" + lines[1],
+        logs.replace("BOOTSTRAP stage=memory_released", ""),
+    ):
+        with pytest.raises(RuntimeError):
+            checker.fresh_batch_counts(broken)
+
+
+def test_memory_peak_never_fabricates(monkeypatch):
+    monkeypatch.setattr(checker, "docker", lambda *args: "123456")
+    assert checker.memory_peak("test") == 123456
+    monkeypatch.setattr(checker, "docker", lambda *args: "not-available")
+    assert checker.memory_peak("test") is None
+
+
+def test_exited_container_fails_before_waiting_on_http():
+    client = SimpleNamespace(get=lambda *args, **kwargs: pytest.fail("HTTP must not run"))
+    with pytest.raises(RuntimeError, match="exited before readiness"):
+        checker.wait_ready(client, alive=lambda: False)

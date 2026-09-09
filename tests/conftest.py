@@ -8,6 +8,9 @@ import pytest
 os.environ["LANGGRAPH_STRICT_MSGPACK"] = "true"
 os.environ["TRAVEL_DATA_MODE"] = "demo"
 os.environ["AGENT_REASONING_MODE"] = "deterministic"
+if os.environ.get("RUN_AUTH0_INTEGRATION_TESTS") != "1":
+    # Local Auth0 configuration must not change ordinary, token-free integration fixtures.
+    os.environ["AUTH_MODE"] = "demo"
 
 
 @pytest.fixture(autouse=True)
