@@ -1,7 +1,8 @@
 # P19 — Product Quality and Handoff
 
-本轮只做产品质量修正、本地离线/集成验收和交接，没有部署或启动下一阶段。
-最终命令结果见 [P19 acceptance report](P19_ACCEPTANCE_REPORT.md)，演示见
+AI Travel Planning Agent 的 P00–P19 实现已完成。P19 功能提交为 `73e9933`，用户已报告
+发布操作完成（**USER-REPORTED COMPLETE**）。本次仅同步文档，不执行部署或启动下一阶段。
+具体云验收不由泛化完成确认推断；本地结果和证据分级见 [P19 acceptance report](P19_ACCEPTANCE_REPORT.md)，演示见
 [walkthrough](DEMO_WALKTHROUGH.md)。
 
 ## 1. 用初学者的话解释两个问题
@@ -84,6 +85,10 @@ quality/warnings 保存与只读恢复，禁止读阶段 graph 重跑；完整�
 
 ### 真实双用户云验收（NOT VERIFIED；需另行授权）
 
+当前只有本地 JWT/PostgreSQL 和浏览器 fixture 的逐项证据。整体发布完成确认没有提供
+两个真实账号、同 UUID、非空数据、跨用户操作及账号切换的结果，因此仍是未有证据确认，
+不是断言用户未做过或测试失败。以下保留为需要时的验收步骤，本次不执行。
+
 由用户控制两个现有测试账号分别登录，不创建账号，不粘贴密码、JWT、Cookie。
 关闭 trace/HAR/video/自动失败截图。使用分离的浏览器 profile，并只记录 A/B 别名和结果。
 
@@ -139,12 +144,15 @@ CHROMA_HOST=127.0.0.1 CHROMA_PORT=8001 CHROMA_SSL=false uv run python scripts/ch
 CHROMA_HOST=127.0.0.1 CHROMA_PORT=8001 CHROMA_SSL=false uv run python scripts/check_chroma_persistence.py after --baseline .p19-private/chroma-before.json --context local-p19-existing-volume
 ```
 
-本次在本地重建的生产镜像 `travel-planner:p19-local` 内实际执行 help/before/after，读取现有
+此前发布前补验在本地重建的生产镜像 `travel-planner:p19-local` 内实际执行 help/before/after，读取现有
 77 条、384 维集合并直接 query。容器 UID 10001、内存限制 2 GiB；没有 API 启动/第二模型加载。
 容器使用 `chroma:8000`，基线与上面宿主机 `127.0.0.1:8001` 不可混用。已安全复制到本机
 `.p19-private/chroma-image-local-before-20260915.json`；两次读取间没有重启 Chroma。
 
 ### 生产执行位置与步骤（NOT VERIFIED；本轮不执行）
+
+发布完成报告不包含生产 before/after 摘要、Chroma-only 重启与排除自动重建的记录。
+`/ready` 成功、API 重启恢复计划或本地 77 条记录比较都不能替代这条证据链。
 
 前提：用户批准维护窗口，P19 后端已部署且健康，现有索引已稳定。记录 API deployment ID、
 Chroma service/volume 的非敏感标识、时间；确认不会同时发布或运行 indexer。
@@ -197,9 +205,9 @@ API 根文件系统可能随部署替换而消失；本地保管副本不能替�
 
 停止条件：集合不存在/空、配置或摘要不一致、超时、API 曾重启、无法排除自动重建、基线丢失。
 不要“修复后重跑直到通过”。不要展示完整环境、索引记录或原始日志。基线丢失需重新约定
-验收窗口，不能事后补造。生产容器实际执行尚未验证；本轮只重建并验证本地生产镜像。
-旧 P18 云镜像不一定含这个 P19 模块，必须先在另行授权的 P19 发布后检查 help；本机存在
-scripts 文件并不意味着旧云镜像可运行它。
+验收窗口，不能事后补造。生产容器内工具执行仍无独立记录；此前只重建并验证了本地生产镜像。
+用户已报告 P19 发布完成，但这不单独证明当前运行镜像的内容。补验时先核对实际 API revision
+和 help；本机存在 scripts 文件不意味着当前云镜像一定可运行这个模块。
 
 ## 5. 安全、发布与维护
 
@@ -212,25 +220,35 @@ scripts 文件并不意味着旧云镜像可运行它。
 用户明确确认三家旧凭据均已撤销，Railway 与本地使用替换后的凭据。只记录确认状态和日期，
 不是代理访问控制台的独立验证；不记录值/片段，本轮不轮换密钥、不改生产 variables。
 
-### 新旧版本的安全发布顺序
+### 发布记录与后续兼容性维护
 
-1. 审阅本地 diff 和测试，确认凭据事项、云验收授权、发布窗口；本轮不 commit/push/deploy。
-2. **先部署新前端**：它接受旧后端缺少 quality/warnings 的响应，显示 unknown/historical 警告。
-3. 安排受控短维护窗口，提醒用户关闭/刷新旧标签页并核对版本。不能强制所有已打开浏览器
-   自动更新；未刷新的旧严格 Zod 客户端会拒绝新增字段，不能承诺零中断。
-4. 再部署新后端，保留数据库、volume、Auth0/限流和模型参数。新前端 + 新后端验证 accepted、
-   forced-finalized、error、刷新与真实双用户隔离。
-5. 回滚时先回滚后端并保留兼容的新前端。不要先把前端退回不能识别新字段的版本。
+功能已提交为 `73e9933` — `fix: clarify itinerary quality and finalize acceptance checks`。
+用户以“好了都搞定了，现在更新 md 吧”报告发布完成；前后端发布记为整体层面的
+**USER-REPORTED COMPLETE**，不补造各平台 deployment ID、时间、SHA 或逐步操作证据。
+GitHub hosted CI 的已记录通过结果仍是 P18 历史；新的 P19 run 尚无独立记录。
+Railway 自动部署是否恢复开启、Wait for CI 当前状态未查询，不能擅自记为已开启。
+
+本次交接采用的兼容顺序为 **新前端 → 旧标签页刷新/关闭 → 新后端**：
+
+1. 新前端接受旧后端缺少 quality/warnings 的响应，显示 unknown/historical 警告。
+2. 旧严格 Zod 前端会拒绝新字段；发布窗口需提醒用户刷新并核对版本。整体发布完成
+   不证明每个旧标签页已刷新，不能强制所有已打开浏览器自动更新或承诺零中断。
+3. 新前端 + 新后端的 accepted、forced-finalized、error、恢复有本地证据；不能将这些
+   fixture/PostgreSQL 结果直接改名为真实双用户生产验收。
+4. 后续兼容性发布保留这个顺序；必要时短维护窗口。回滚先后端并保留兼容的新前端，
+   不先把前端退回无法识别新字段的版本。保留数据库、volume、认证及限流边界。
 
 “optional 字段”不意味着任意旧严格客户端都兼容；本轮没有放宽 Zod 成任意透传。
 后端 SDK 中若存在用户自建的严格消费者，也须先升级消费者再升级响应生产者。
 
-本次 Node 实验直接加载 `git show 6bc79ba:frontend/src/api/schemas.ts` 的旧 Zod，与当前
+此前本地 Node 实验直接加载 `git show 6bc79ba:frontend/src/api/schemas.ts` 的旧 Zod，与 P19
 schema 解析同一合成 payload。旧 schema 对 legacy plan 成功，对含 quality/warnings 的
 accepted 与 forced-finalized plan/SSE 都报 unrecognized_keys；当前 schema 接受三种形状。
-当前 5 项质量 UI 测试通过；新后端数据库重开和此前 fixture E2E 提供新/新恢复证据。
+发布前补验的 5 项质量 UI 测试通过；新后端数据库重开和更早的 fixture E2E 提供新/新恢复证据。
 准确兼容矩阵见验收报告；不以“字段 optional”推断旧客户端兼容，也不等于真实云端验收。
 
-维护仍需完成云验收和录制演示，凭据撤销已有用户确认，不自动进入 P20。保持既有模型/语料/
-维度、五路结构和供应商边界。历史本地 1 GiB fresh-index OOM 与 2 GiB 验证是 P18 记录，
+后续为维护与可选改进：成本/内存、后续数据源、用户反馈、补充尚缺的云证据和可选视频。
+视频未录制，不阻塞代码实现或用户报告的发布完成；凭据撤销已有用户确认，不自动进入 P20。
+保持既有模型/语料/维度、五路结构和供应商边界。
+历史本地 1 GiB fresh-index OOM 与 2 GiB 验证是 P18 记录，
 不是 P19 新测试，也不是 Railway 实测内存结论。前端大 chunk 提示仍待将来单独评估。

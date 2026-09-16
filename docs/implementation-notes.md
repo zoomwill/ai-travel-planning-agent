@@ -2,6 +2,10 @@
 
 Record deviations from source pseudocode and important engineering decisions here.
 
+Entries below preserve the state at each engineering milestone, not today's deployment status.
+For AI Travel Planning Agent's completed P00–P19 implementation, owner-reported P19 publication
+and separate verification boundaries, see [P19 acceptance](P19_ACCEPTANCE_REPORT.md).
+
 ## Template
 
 ### Date — Topic
@@ -1151,3 +1155,39 @@ Record deviations from source pseudocode and important engineering decisions her
 - Production two-user and Chroma-only restart checks remain NOT VERIFIED. Only local image
   packaging/runtime is verified, not current Railway module presence/SSH permissions. Exact
   CLI, private file transfer, stop conditions and final Git inventory are in the P19 report.
+
+### P19 publication closeout — Markdown-only synchronization
+
+- Source intent: close the completed independent AI Travel Planning Agent project milestone
+  without reopening implementation or implying that every optional cloud check passed.
+- Actual local evidence: clean worktree at the first synchronization; a repeat closeout request
+  found and retained the same five uncommitted Markdown changes. Git log/show still identify P19 commit
+  `73e993300f12439e4418d20a0e105062d65eaabe`, message
+  `fix: clarify itinerary quality and finalize acceptance checks`, with 74 changed files.
+  `6bc79ba` is the historical pre-P19 README baseline, not the P19 feature commit. Local
+  origin/main agrees with HEAD but no fetch/platform query establishes deployed revisions.
+- Publication source: the owner reports “好了都搞定了，现在更新 md 吧。” Frontend and backend
+  publication are USER-REPORTED COMPLETE at the overall release level. No cloud deployment
+  IDs, exact publication times, running SHAs, fresh hosted-CI result or restored Railway
+  autodeploy switch are inferred. The handoff order was frontend, old-tab refresh, backend;
+  this is not a claim that every open browser tab was forcibly upgraded or independently checked.
+- Verification records retained, not rerun or summed: P19 implementation frontend 85 tests /
+  15 files and browser E2E 6 passed / 2 skipped; later pre-publication backend 795 passed /
+  21 skipped, local Docker integration 15 passed / 1 observability skip, frontend quality 5
+  passed, Ruff/format/mypy/diff checks passed, image build and 2 GiB local helper passed.
+  Chroma evidence remains local: 77 records / 384 dimensions, matching summaries/direct query,
+  no second full embedding model. No production Chroma restart is established by that result.
+- No new itemized production two-user or Chroma-only restart evidence was found in the current
+  conversation/reports; both remain NOT VERIFIED rather than automatically CLOUD VERIFIED.
+  P18 public acceptance/hosted CI remain USER-REPORTED HISTORICAL; historical reports unchanged.
+- Product wording now consistently describes five branches with unsupported route unavailable,
+  not guessed minutes; workflow completion distinct from acceptance; forced drafts and unknown
+  history; read-only recovery and local account-switch isolation. Duffel Developer Test,
+  LiteAPI Sandbox, demo attractions/weather and no booking/live-route guarantee remain explicit.
+- Historical credential revocation remains USER CONFIRMED, 2026-09-15, not an independent
+  provider API revocation test. No values recorded. Three existing JPGs remain Local fixture
+  demonstration; no new video evidence, so the optional ~100-second script is retained.
+- This turn changes only the five allowed Markdown files and checks their diff, local links,
+  image paths, milestones and evidence labels. No code/test/CI/Dockerfile edits, application
+  test reruns, network verification, paid calls, service restart, commit, push, tag or release.
+  Maintenance and optional improvements do not automatically open P20 or another phase.

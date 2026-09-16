@@ -11,14 +11,19 @@
 
 Sign in through Auth0 to use this publicly deployed development/portfolio application.
 Intake and planning are rate limited to protect paid AI/provider quotas. Flights use Duffel
-Developer Test Mode, hotels use LiteAPI Sandbox, and attractions, weather and routes use Demo
-data. These are not production booking inventories. There is no booking or payment capability.
+Developer Test Mode, hotels use LiteAPI Sandbox, and attractions and weather use Demo data.
+The fifth route branch still runs, but unsupported routes are explicitly unavailable, not
+invented travel estimates. These are not production booking inventories. There is no booking or
+payment capability.
 Production API docs and public metrics are intentionally disabled.
 
-**P19 local update — cloud publication pending.** Unverified Demo route durations are now
-unavailable, and completed workflows distinguish reviewer acceptance from a forced-finalized
-draft. These fixes are local and have **not** been deployed to the links above. The route source
-still identifies the attempted Demo provider; it is not evidence of a successful route lookup.
+**P00–P19 implementation is complete.** The application is publicly deployed, and P19 publication
+has been **reported complete by the project owner**. Verification scope and remaining checks
+are documented in the [P19 acceptance report](docs/P19_ACCEPTANCE_REPORT.md).
+The project now moves to maintenance and optional improvements, not another numbered phase.
+P19 rejects unsupported route estimates in the backend and distinguishes reviewer acceptance,
+forced-finalized drafts and unknown historical quality; publication is not a claim that every
+specific cloud acceptance check has passed.
 
 <details>
 <summary>Product screenshot — Local fixture demonstration (not cloud acceptance)</summary>
@@ -53,15 +58,32 @@ Qwen is therefore allowed to reason over supplied candidates and produce structu
 
 ## Current Status
 
-**P00–P18 implementation is complete; P19 is local, awaiting review and publication.**
-The P18 application is publicly deployed on Vercel and Railway.
+**P00–P19 implementation is complete; P19 publication is USER-REPORTED COMPLETE.**
+The project owner's latest confirmation is “好了都搞定了，现在更新 md 吧。”
+Local Git records the P19 implementation in `73e9933` —
+`fix: clarify itinerary quality and finalize acceptance checks`.
+Vercel and Railway publication are recorded from that overall owner confirmation, not a new
+inspection of either platform's deployment ID, timestamp or running commit.
 **USER-REPORTED HISTORICAL**, **2026-09-09**: Auth0 login, JWT-authorized API access,
 Qwen conversational intake, persistent planning, authenticated POST SSE and restoration of the
 previous plan after restarting the Railway API; GitHub-hosted backend/frontend CI passed.
-These historical results are not a fresh P19 cloud verification. P19 local tests are recorded
-separately; P19 **CLOUD VERIFIED: none**. Real production two-user isolation and a Chroma-only
-restart comparison remain pending. Historical Qwen/Duffel/LiteAPI credential revocation was
-**USER CONFIRMED on 2026-09-15**; no credential values are recorded.
+These historical results are not a fresh P19 cloud verification. Historical Qwen/Duffel/LiteAPI
+credential revocation was **USER CONFIRMED on 2026-09-15**; no credential values are recorded.
+
+### Verification Scope
+
+| Evidence | Status and scope |
+| --- | --- |
+| P19 implementation and Git milestone | LOCAL VERIFIED; `73e9933` contains the feature, tests and handoff |
+| P19 Vercel frontend / Railway backend publication | USER-REPORTED COMPLETE; individual deployment revisions not independently checked |
+| P19 local validation | LOCAL VERIFIED; backend 795 passed / 21 skipped; Docker integration 15 passed / 1 skipped; frontend run scopes below |
+| P18 public acceptance and hosted CI | USER-REPORTED HISTORICAL; 2026-09-09, not a new P19 CI or cloud run |
+| Real two-user production isolation | NOT VERIFIED; local JWT/browser-fixture tests passed, but no itemized production evidence is recorded |
+| Production Chroma-only restart persistence | NOT VERIFIED; local tool/query comparison passed, not a production restart |
+
+There is no newly recorded P19 **CLOUD VERIFIED** result. Local Git or `origin/main` does not
+prove that both cloud services run the same commit. See the report for evidence boundaries;
+remaining checks and an optional video do not reopen completed implementation work.
 
 P18 adds authentication and authorization, pseudonymous multi-user resource isolation,
 Redis-backed request caps, exact production CORS/trusted hosts, containerized backend deployment,
@@ -92,7 +114,7 @@ evidence and the remaining verification boundaries.
 | Authentication / authorization | Auth0 local and Vercel login verified; RS256 API tokens; user-scoped resources |
 | Cost protection | Redis intake/planning limits and global request caps |
 | Deployment | Vercel SPA + Railway HTTPS API with private PostgreSQL, Redis and Chroma |
-| CI/CD | Hosted GitHub Actions backend/frontend jobs verified; Railway Wait for CI |
+| CI/CD | Backend/frontend workflow implemented; hosted success recorded for P18; P19 run and current Railway automation not independently checked |
 | Cloud persistence | PostgreSQL-backed plan restored after API restart; separate Chroma restart NOT VERIFIED |
 | Booking / payment | **Not implemented** |
 
@@ -189,7 +211,7 @@ flowchart TD
         FAN --> H["Hotels"]
         FAN --> A["Attractions · Demo"]
         FAN --> W["Weather · Demo"]
-        FAN --> R["Route · Demo"]
+        FAN --> R["Route · unsupported → unavailable"]
         F & H & A & W & R --> AGG["Aggregate results"]
         AGG --> PLANNER["Grounded Planner"]
         PLANNER --> REVIEWER["Reviewer"]
@@ -207,8 +229,8 @@ flowchart TD
     H --> LITEAPI["LiteAPI · Sandbox"]
     GRAPH -->|"Authenticated SSE progress"| UI
     FINAL -->|"One final SSE result"| UI
-    CI["GitHub Actions · backend + frontend"] --> WAIT["Wait for CI"]
-    WAIT -->|"Railway deployment"| API
+    CI["GitHub Actions · backend + frontend"] --> WAIT["Wait for CI · when enabled"]
+    WAIT -.->|"Deployment gate · current automation not rechecked"| API
 ```
 
 The deployed search transport is `direct`. Optional MCP transports and local Prometheus/Grafana
@@ -326,7 +348,9 @@ explicit trip `guest_nationality`; intake asks for it before confirmation. It is
 saved as a long-term preference. Demo and legacy Duffel planning do not require it.
 The shared location resolver currently uses Duffel Places, including for LiteAPI hotels.
 Project dates are inclusive: Oct 12–16 means five itinerary days and five hotel nights, with
-checkout Oct 17. Hotel totals exclude any separately payable property fees; never assume all-in.
+checkout Oct 17. Hotel search supports one room for one or two adults. The exact Decimal stay
+total is retained; the rounded nightly average is never multiplied back to recreate the total.
+Hotel totals exclude any separately payable property fees; never assume all-in.
 
 ## Conversational trip intake
 
@@ -375,7 +399,7 @@ Reciprocal Rank Fusion
         ↓
 Deterministic reranker
         ↓
-Child-to-parent context reconstruction
+Child-to-parent context mapping
         ↓
 Redis cache-aside
 ```
@@ -445,14 +469,18 @@ Non-critical failures:
 - weather,
 - route.
 
-The planner never silently invents missing critical results.
+The planner never silently invents missing critical results. The fifth route search still executes;
+without verified coverage it returns an explicit non-critical error. P19 blocks the old synthetic
+route minutes in the provider, worker, Planner inputs and final assembly—not just in the UI.
+This is not a real map or transit integration.
 
 ---
 
 ## MCP tool layer
 
 P11 introduced MCP tools; P17 extended flights/hotels to the configured external providers while
-preserving the tool contract. Weather, route and attractions remain deterministic Demo data.
+preserving the tool contract. Weather and attractions remain deterministic Demo data. The route
+tool remains discoverable/called, but unsupported routes report non-critical unavailability.
 
 ### STDIO server
 
@@ -507,10 +535,24 @@ Qwen can provide structured review scores and critique in Qwen mode, but applica
 
 This prevents the model from creating an unbounded self-reflection loop.
 
-The public Cleveland → Tokyo acceptance run reached **review round 3 and forced finalization**.
+The historical, owner-reported P18 Cleveland → Tokyo acceptance run reached
+**review round 3 and forced finalization**.
 The Reviewer identified a feasibility/factual problem in the supplied Demo route estimate.
 Finalization therefore does **not** mean every plan met the quality threshold. A Reviewer can
 flag bad candidate facts, but cannot replace them with authoritative real-world routing.
+
+P19 makes that distinction explicit in the durable plan and the UI:
+
+| Outcome | Meaning |
+| --- | --- |
+| Workflow ended | Computation ended; no continuing Improving, revision spinner or loading state |
+| Reviewer accepted | The review threshold was met; test/sandbox facts still require independent verification |
+| Forced finalization | The round limit was reached; preserve the actual score/issues and show a draft needing review |
+| Historical quality unavailable | Missing trustworthy checkpoint fields; show unknown, never invent a score or default to accepted |
+
+Refresh and history reads retain the quality/warnings without executing graph, Qwen or provider
+search again. The P18 route defect is now handled in the backend as unavailable; existing saved
+route text is warned about rather than silently rewritten.
 
 See [`docs/16_PLANNER_REVIEWER_REFLECTION.md`](docs/16_PLANNER_REVIEWER_REFLECTION.md).
 
@@ -680,8 +722,10 @@ Authentication identifies the caller; authorization limits access to that caller
 Validated identity becomes a deterministic pseudonymous internal `user_ref`. This is
 pseudonymization, not encryption. Thread/checkpoint namespaces, intake and preferences are
 scoped to that reference. Browser-supplied `user_id` values cannot select another account's data.
-Offline isolation tests exist; a separate real two-user production isolation test is still
-**NOT VERIFIED**.
+P19 local JWT/PostgreSQL and browser-fixture isolation tests cover non-empty A/B data using the
+same public thread UUID. Account switching clears prior conversation, plan and recent-trip UI;
+late A responses cannot repopulate B's page. These are local signed-token/mock-SDK tests, not
+real Auth0 two-user cloud acceptance; the latter remains **NOT VERIFIED** without itemized evidence.
 
 ### Local/demo identity versus public identity
 
@@ -794,7 +838,7 @@ See [`docs/20_OBSERVABILITY.md`](docs/20_OBSERVABILITY.md).
 
 ---
 
-# Public Deployment — P18
+# Public Deployment — P18 Foundation and P19 Release
 
 The frontend is hosted on Vercel and calls the HTTPS Railway API directly, including authenticated
 POST SSE. Public deployment is separate from the [local quick start](#local-development-quick-start).
@@ -808,7 +852,8 @@ POST SSE. Public deployment is separate from the [local quick start](#local-deve
 | `redis` | Private; cache, parent-document support and atomic request caps |
 | `chroma` | Private; vector retrieval; persistent volume mounted at `/data` |
 
-PostgreSQL, Redis and Chroma runtime were verified in the deployed workflow. The Chroma `/data`
+PostgreSQL, Redis and Chroma runtime were recorded in the historical P18 deployed workflow.
+The Chroma `/data`
 volume is **CONFIGURED**; preservation across a separate **Chroma service restart is NOT VERIFIED**.
 API restart recovery verifies PostgreSQL-backed application state, not that separate Chroma test.
 
@@ -821,8 +866,24 @@ Actual GitHub-hosted CI was verified on 2026-09-09. The
 - `frontend`: lint, typecheck, Vitest, production build and mock Playwright browser tests.
 
 Normal CI uses deterministic/demo modes and makes no real Qwen, Duffel, LiteAPI or Auth0 calls.
-Railway's GitHub-connected deployment uses **Wait for CI** before deploying. The public frontend
-is deployed on Vercel; a successful build alone is not a substitute for browser/cloud acceptance.
+Railway **Wait for CI** is the documented gate when GitHub-connected automatic deployment is
+enabled. Its current switch state, whether automatic deployment was re-enabled, and a new P19
+hosted CI result have not been independently checked. Do not infer them from local Git.
+The public frontend is deployed on Vercel; a successful build alone is not browser/cloud acceptance.
+
+## P19 publication record
+
+P19 implementation commit: `73e9933` — `fix: clarify itinerary quality and finalize acceptance checks`.
+The owner reports the publication operations complete (**USER-REPORTED COMPLETE**), covering the
+Vercel frontend and Railway backend at the overall release level. No per-platform deployment ID,
+exact publication time or running SHA is supplied by that general confirmation.
+
+The release handoff order was **new frontend → old-tab refresh/close → new backend**, because
+the new frontend accepts old payloads while the old strict Zod frontend rejects the new fields.
+The completion report closes that release handoff; it is not a per-tab refresh audit or proof of
+the deployed revisions. Future releases must preserve this compatibility rule and allow a short
+controlled window if needed. Already-open browsers cannot all be forcibly upgraded automatically.
+See the [P19 report](docs/P19_ACCEPTANCE_REPORT.md) for separately unverified cloud checks.
 
 ## Bootstrap hardening and memory
 
@@ -898,7 +959,8 @@ The [deployment guide](docs/25_AUTH_AND_DEPLOYMENT.md),
 [P18 local acceptance report](docs/P18_ACCEPTANCE_REPORT.md) and
 [bootstrap fix report](docs/P18_BOOTSTRAP_FIX_REPORT.md) preserve earlier implementation-stage
 evidence. Their cloud-pending/old memory-allocation statements describe that historical stage;
-this dated README section records the subsequent public acceptance and current deployment state.
+this dated README section records the subsequent P18 public acceptance. The P19 publication
+record above is separate and does not retroactively change those historical reports.
 
 ---
 
@@ -1308,12 +1370,12 @@ uv run mypy app
 uv run pytest -q
 ```
 
-P18 bootstrap follow-up offline result, recorded on 2026-09-08 in the
-[bootstrap fix report](docs/P18_BOOTSTRAP_FIX_REPORT.md):
+Latest P19 pre-publication offline result, recorded on 2026-09-15 in the
+[P19 acceptance report](docs/P19_ACCEPTANCE_REPORT.md), not rerun for this Markdown update:
 
 ```text
-754 passed
-17 skipped
+795 passed
+21 skipped
 ```
 
 Run infrastructure integration tests explicitly:
@@ -1323,13 +1385,20 @@ RUN_INTEGRATION_TESTS=1 \
 uv run pytest -m integration -q
 ```
 
-Local infrastructure result from that same report (not a cloud/provider test):
+P19 local Docker integration result from that report (not a cloud/provider test):
 
 ```text
-11 passed
+15 passed
 1 skipped
-759 deselected
+800 deselected
 ```
+
+The skipped case needs separately enabled observability services. These tests isolate local
+database hosts and deterministic/fake external services from private `.env` settings. P19 also
+passed Ruff, format, mypy, the production-image build and the read-only Chroma tool in a 2 GiB
+local container: 77 records / 384 dimensions, matching summaries/direct query, no second full
+embedding-model load. A local comparison without a Chroma restart is not restart persistence.
+Earlier P18 results remain in the [historical bootstrap report](docs/P18_BOOTSTRAP_FIX_REPORT.md).
 
 Real Qwen tests are gated separately to avoid accidental API usage and cost.
 
@@ -1376,16 +1445,15 @@ npm run build
 npm run test:e2e
 ```
 
-P18 local frontend baseline, recorded on 2026-09-08 in the
-[local acceptance report](docs/P18_ACCEPTANCE_REPORT.md):
+P19 implementation validation, recorded before the later pre-publication integration check:
 
 ```text
 Vitest:
-14 test files passed
-77 tests passed
+15 test files passed
+85 tests passed
 
 Playwright:
-2 mock browser E2E tests passed
+6 fixture browser E2E tests passed
 2 gated real-backend tests skipped
 
 Production build:
@@ -1393,6 +1461,9 @@ PASS
 ```
 
 A real browser/Qwen E2E is intentionally gated and is not part of ordinary frontend testing.
+The later P19 integration follow-up ran only the affected quality subset: **5 passed**. It did
+not rerun the full frontend suite. This Markdown-only update reruns neither suite; counts describe
+separate runs and are not added together. See [P19 acceptance](docs/P19_ACCEPTANCE_REPORT.md).
 
 ---
 
@@ -1551,11 +1622,11 @@ is verified; a separate Chroma restart-persistence test is not.
 - flights: demo by default; Duffel test/live only when explicitly enabled
 - hotels: demo by default; LiteAPI sandbox/production when selected; Duffel Stays optional
 
-### Demo / deterministic data retained in P18
+### Demo / deterministic data and unavailable routes in P19
 
 - attraction search data
 - weather data
-- route data
+- route branch retained, but unsupported routes explicitly unavailable; not a production route service
 - local RAG corpus
 
 Therefore the application currently must **not** be used as:
@@ -1581,10 +1652,13 @@ The public deployment has these limits:
 - Hotel search currently supports **one room for one or two adults**; other party sizes are
   unsupported. Dates use the project's inclusive-day/night contract; separately payable fees
   are not necessarily included in the quoted total.
-- Attractions, weather and routes remain **deterministic Demo data**. The Cleveland → Tokyo
-  acceptance exposed invalid cross-city/cross-continent Demo route semantics.
+- Attractions and weather remain **deterministic Demo data**. The fifth route branch still runs,
+  but P19 rejects unsupported synthetic route estimates in the backend as non-critical unavailable.
+  There is no real map/transit service or verified attraction inventory.
 - A final plan may be **forced-finalized at the maximum review round**, without meeting the
-  quality threshold. The Reviewer cannot repair incorrect supplied facts by inventing replacements.
+  quality threshold. It stays labeled as a draft requiring review, without terminal spinners.
+  Missing historical review data remains unknown. Reviewer acceptance is not factual certification.
+  The Reviewer cannot repair incorrect supplied facts by inventing replacements.
 - Duffel Stays is optional and **NOT VERIFIED**; account access was not granted.
 - There is **no booking, payment, public production travel SLA or commercial-readiness claim**.
 - SSE has no Last-Event-ID replay and does not stream real model tokens.
@@ -1623,6 +1697,7 @@ The project was built incrementally so that each major architectural capability 
 | P16 | Web chat frontend | Complete browser conversation-to-itinerary UX |
 | P17 | Multi-provider external travel data | Duffel Flights + LiteAPI Hotels, provenance, no booking |
 | P18 | Authentication, authorization & cloud deployment | Auth0 + GitHub Actions + Railway + Vercel; authenticated cloud SSE and persistent user-scoped backend |
+| P19 | Product quality and project handoff | Honest route degradation, durable quality/recovery, account-switch isolation, local acceptance and owner-reported publication complete |
 
 ---
 
@@ -1652,6 +1727,7 @@ Selected milestone commits:
 | P17 | `aa5d8aa` | Multi-provider travel search |
 | P18 | `b249bb5` | Secure auth and deployment infrastructure |
 | P18 follow-up | `b9e9902` | Deployment hardening: bounded RAG bootstrap memory |
+| P19 | `73e9933` | `fix: clarify itinerary quality and finalize acceptance checks` |
 
 These commits document the incremental engineering history of this project.
 
@@ -1680,7 +1756,7 @@ These commits document the incremental engineering history of this project.
 | External travel data | [`docs/24_EXTERNAL_TRAVEL_DATA.md`](docs/24_EXTERNAL_TRAVEL_DATA.md) |
 | Authentication and deployment | [`docs/25_AUTH_AND_DEPLOYMENT.md`](docs/25_AUTH_AND_DEPLOYMENT.md) |
 | Product quality and operator handoff | [`docs/26_PRODUCT_QUALITY_AND_HANDOFF.md`](docs/26_PRODUCT_QUALITY_AND_HANDOFF.md) |
-| P19 local acceptance and pending cloud checks | [`docs/P19_ACCEPTANCE_REPORT.md`](docs/P19_ACCEPTANCE_REPORT.md) |
+| P19 acceptance, publication record and verification scope | [`docs/P19_ACCEPTANCE_REPORT.md`](docs/P19_ACCEPTANCE_REPORT.md) |
 | Screenshots and recording script | [`docs/DEMO_WALKTHROUGH.md`](docs/DEMO_WALKTHROUGH.md) |
 | P18 historical local acceptance | [`docs/P18_ACCEPTANCE_REPORT.md`](docs/P18_ACCEPTANCE_REPORT.md) |
 | P18 bootstrap hardening and local memory evidence | [`docs/P18_BOOTSTRAP_FIX_REPORT.md`](docs/P18_BOOTSTRAP_FIX_REPORT.md) |
@@ -1692,22 +1768,19 @@ The P18 guide/reports retain their original implementation-stage status. For the
 
 ---
 
-# Roadmap
+# Maintenance / Optional Future Improvements
 
-## P19 — Portfolio polish / product quality
+P00–P19 implementation is complete and the owner reports P19 publication complete. No new
+numbered phase is automatically opened. Optional follow-up work, only when separately chosen:
 
-Local P19 implementation corrects unverified route semantics, distinguishes accepted from
-forced-finalized drafts, stops terminal progress, and preserves quality during read-only
-restoration. It adds non-empty two-user isolation regressions, a read-only Chroma comparison
-helper, three labeled local fixture screenshots, and an operator/recording walkthrough.
+- cost and memory optimization;
+- additional real data sources with explicit access and provenance;
+- broader user feedback;
+- recorded evidence for the remaining production two-user and Chroma-only restart checks;
+- an optional demo video using the existing approximately 100-second walkthrough.
 
-Pre-publication local integration is now verified: **15 passed, 1 skipped** with real local
-PostgreSQL/Redis/Chroma and deterministic external services. The production-image read-only
-Chroma helper ran under a 2 GiB limit against the existing local collection; no Chroma restart
-was performed. See the acceptance report for compatibility evidence and controlled release order.
-Pending: review and authorized publication; P19 public behavior; real two-user production
-isolation; Chroma-only restart evidence; an actual recorded video. Historical credential
-revocation is user-confirmed. No new provider, booking feature, domain, or P20 work is included.
+The three screenshots remain **Local fixture demonstration**. No video is recorded in the
+available evidence; video is an optional presentation item, not an implementation/publication gate.
 
 ---
 
@@ -1825,7 +1898,7 @@ It explores how to build an AI system where:
 - provider adapters preserve truthful data provenance,
 - authenticated users access only their scoped state,
 - Redis request caps protect expensive work,
-- hosted CI gates deployment to a public cloud backend,
+- hosted CI supports controlled deployment to a public cloud backend,
 - and the UI reflects real backend state instead of simulating intelligence in the browser.
 
 The project connects AI reasoning and grounding, RAG, parallel graph execution, provider
@@ -1840,9 +1913,9 @@ and operational limits; those remain part of the engineering work, not hidden su
 This is a **publicly deployed development/portfolio application**, with local development support.
 
 Travel data has mixed provenance: Duffel Test flights and LiteAPI Sandbox hotels use real external
-integrations but are **not production booking inventory**; attractions, weather and routes are
-Demo data. There is no booking or payment capability. Do not treat the application as an
-authoritative source of prices, availability, routing, weather, opening hours, transport notices
+integrations but are **not production booking inventory**; attractions and weather are Demo data,
+and unsupported routes are explicitly unavailable. There is no booking or payment capability.
+Do not treat the application as an authoritative source of prices, availability, routing, weather, opening hours, transport notices
 or accessibility information, or as a commercial travel service with a production SLA.
 
 Always verify important travel information with authoritative providers before making real-world decisions.

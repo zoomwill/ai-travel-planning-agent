@@ -1,14 +1,47 @@
-# P19 — Local Acceptance and Publication Handoff
+# P19 — Acceptance, Publication Record and Project Handoff
 
 日期：2026-09-15。项目：AI Travel Planning Agent。
 
-**P19 local integration verified; ready for controlled publication.**
-**Cloud acceptance and publication pending.**
+**P00–P19 implementation complete; P19 publication USER-REPORTED COMPLETE.**
+后续为维护与可选改进，不默认进入新的编号阶段。具体云端验收证据与发布完成分开记录。
 
-本报告已补入同日“发布前本地集成验证”结果；不是新一轮开发或云部署。
-保留全部既有 P19 修改；本次恢复时为 49 tracked modified + 18 untracked，HEAD 未变。
+## 当前收尾状态与证据来源
 
-本次补验只新增/调整以下文件，其余 P19 改动原样保留：
+用户最新确认：“好了都搞定了，现在更新 md 吧。”本报告据此将 P19 发布操作记为
+**USER-REPORTED COMPLETE**，不把泛化确认扩展为逐项云验收、部署版本或准确发布时间。
+
+首次文档同步开始时工作树干净；重复收到收尾要求后的复核保留了已保存的五份 Markdown
+未提交修改，没有重新开始实现。复核时实际 Git HEAD 仍为
+`73e993300f12439e4418d20a0e105062d65eaabe`，message 为
+`fix: clarify itinerary quality and finalize acceptance checks`；这是 P19 功能提交，
+包含 74 个文件（2753 insertions、168 deletions，包括三张图片）。`6bc79ba` 仅为 P19
+开始前的历史基线/README P18 记录提交，不是 P19 实现提交。
+main 与本地缓存的 origin/main 指向 `73e9933`；没有 fetch 或查询云平台，不能据此推断
+Vercel/Railway 正在运行的 SHA、当前 hosted CI 状态或 Railway 自动部署开关。
+
+| 项目 | 当前证据标签 | 已知内容 / 限制 |
+| --- | --- | --- |
+| P00–P19 实现及 P19 Git 提交 | LOCAL VERIFIED | 本地历史确认 `73e9933`，不是等待提交的功能 diff |
+| Vercel 前端发布 | USER-REPORTED COMPLETE | 来自用户对整体 P19 发布操作的完成确认；无独立 deployment ID/时间/SHA 记录 |
+| Railway 后端发布 | USER-REPORTED COMPLETE | 同上；不声称两平台必然运行同一提交 |
+| GitHub hosted CI | USER-REPORTED HISTORICAL / P19 NOT VERIFIED | P18 于 2026-09-09 报告通过；没有本次 P19 job URL/独立结果 |
+| 真实双用户生产隔离 | NOT VERIFIED | 本地非空 A/B、同 UUID 隔离已验证；未保存真实账号逐项结果 |
+| 生产 Chroma-only restart persistence | NOT VERIFIED | 缺生产 before/after、Chroma-only 重启及排除自动重建的证据链 |
+| 历史三家凭据撤销 | USER CONFIRMED — 2026-09-15 | 只记录用户确认，不是代理验证旧凭据失效 |
+| 展示材料 | LOCAL VERIFIED / 视频 NOT RECORDED | 三张现存 fixture 图片；没有新增视频文件或录制记录 |
+
+发布交接安排为“先新前端 → 旧标签页刷新/关闭 → 新后端”，用户报告发布操作已完成。
+这不是逐个标签页刷新的审计，也不补造发布时刻、生产用户测试步骤、token 数或 E2E 次数。
+尚缺的具体云验收可以另行补证，不阻止记录代码实现和用户报告的发布完成。
+当前无新增 P19 CLOUD VERIFIED 项；公开入口保持 README 中的 Vercel 前端与 Railway health。
+
+本次只同步 Markdown，没有重新运行 pytest、npm、Docker build 或任何云请求。
+以下验证数来自此前实际运行，分为实现验证与发布前集成补验，不能相加或当作本次新跑。
+
+### 发布前补验范围（历史记录）
+
+发布前补验恢复时为 49 tracked modified + 18 untracked，HEAD 当时仍是 `6bc79ba`。
+当时只新增/调整以下文件，其余 P19 改动保留：
 
 - 测试隔离：`tests/conftest.py`、`tests/local_infrastructure.py`、
   `tests/deployment/test_local_integration_settings.py`。
@@ -19,13 +52,12 @@
 - 记录：本报告、`docs/26_PRODUCT_QUALITY_AND_HANDOFF.md`、
   `docs/implementation-notes.md`、`README.md`。
 
-没有额外修改应用实现、前端代码、Dockerfile、依赖锁或 Compose。
+该补验没有额外修改应用实现、前端代码、Dockerfile、依赖锁或 Compose。
 
 ## A. 已完成的实现与恢复现场
 
-开始及最终 HEAD：`6bc79ba3c97f4b6fd966a7d5dc5b010e9088ecf2`。
-分支为 main；本地缓存的 origin/main 指向同一提交，本轮未 fetch，因此不是远端实时查询结果。
-最近三次提交为 README P18 验收记录、bounded bootstrap 修复、P18 auth/deployment。
+以下为功能提交之前的实现续跑记录；当时开始及结束 HEAD 都是
+`6bc79ba3c97f4b6fd966a7d5dc5b010e9088ecf2`。后续已形成上面的 P19 提交 `73e9933`。
 
 这是同一 P19 工作树的续跑。恢复时先读取 status/log/diff check/stat/name-status/untracked：
 46 个已跟踪文件修改、14 个新文件（逐个文件计，不把 docs/images 目录当作一个文件）。
@@ -63,12 +95,13 @@
 
 | 标签 | 本报告含义 |
 | --- | --- |
-| LOCAL VERIFIED | 本轮实际运行的离线/本机检查，不代表公网或供应商成功 |
+| LOCAL VERIFIED | 此前 P19 实际运行的离线/本机检查，或本次本地 Git/文档核对；不代表公网成功 |
 | USER-REPORTED HISTORICAL | 用户于 2026-09-09 报告的 P18 公网结果，未在 P19 重跑 |
-| CLOUD VERIFIED | 本轮没有这一类结果 |
-| NOT VERIFIED / NOT RUN | 未授权、基础设施未运行或尚未执行，不得算 PASS |
+| USER-REPORTED COMPLETE | 用户最新报告 P19 发布操作已完成；无逐项云证据的事项不自动升级 |
+| CLOUD VERIFIED | 需明确具体云验收证据；本报告未新增 P19 此类结果 |
+| NOT VERIFIED / NOT RUN | 缺可核对证据，或确实未授权/未运行；按各项说明区分，不得算 PASS |
 
-### 实现续跑时的完整回归（本次补验之前）
+### Implementation validation — 实现续跑时的完整回归
 
 | 命令/检查 | 实际结果 |
 | --- | --- |
@@ -92,9 +125,9 @@
 桌面与手机 Chromium 执行。不是 Safari/WebKit 验收。两个 skip 是显式关闭的真实后端路径。
 后端 18 个 skip 包含原有 17 个显式集成场景与新增的本地 PostgreSQL 隔离分支。
 
-### 发布前补验：最终工作树结果
+### Pre-publication integration validation — 发布前补验结果
 
-| 命令/检查 | 本次实际结果 |
+| 命令/检查 | 发布前补验实际结果 |
 | --- | --- |
 | `docker --context desktop-linux compose config --quiet` | PASS |
 | `docker --context desktop-linux compose up -d --wait --wait-timeout 120 postgres redis chroma` | PASS；仅启动这三个已有服务 |
@@ -110,12 +143,12 @@
 | 起始提交旧 Zod + 当前 Zod 的实际 Node wire-schema 比较 | PASS；见兼容矩阵，旧客户端确实拒绝新增字段 |
 | 本地生产镜像 build / 2 GiB helper 容器运行 | PASS；见下面镜像证据 |
 
-本次修改 tests/conftest.py 会影响整个后端测试进程，因此重跑全部后端回归。
+当时修改 tests/conftest.py 会影响整个后端测试进程，因此重跑全部后端回归。
 没有修改前端代码或依赖，未重复完整前端构建/85 项 UI/6 项浏览器回归；这些仍属于上表此前
-已执行的本地实现结果，不能写成本次新跑。21 个离线 skip 包括新增的 3 个 PostgreSQL 场景。
+已执行的本地实现结果，不能写成补验或本次文档同步新跑。21 个离线 skip 包括新增的 3 个 PostgreSQL 场景。
 集成唯一 skip 是 `RUN_OBSERVABILITY_TESTS=0` 的 P13 观测端到端场景；未启动额外观测服务。
 
-本次补齐的实际 PostgreSQL 证据：
+发布前补验补齐的实际 PostgreSQL 证据：
 
 - `tests/integration/test_p19_product_quality_integration.py`：3 项；95 分 accepted、60 分
   forced-finalized 达到既定最大轮数、缺 quality/warnings 的旧 checkpoint。
@@ -140,9 +173,9 @@ LangGraph AsyncBatched Store 的 pending-task 日志；最后一次完整集成�
 检索缓存项做精确失效，以验证真实检索和缓存重填。不清空库/Redis/Chroma，不删除用户历史。
 
 构建仍有大 chunk 提示（JS 531.76 kB，gzip 156.55 kB）；没有为消除提示调高阈值。
-这些是本次本地构建产物大小，不是延迟、吞吐或生产容量指标。
+这些是此前本地构建产物大小，不是延迟、吞吐或生产容量指标。
 
-### 本轮遇到并解决的验证失败
+### 实现与补验阶段遇到并解决的验证失败
 
 1. 账号 fixture 最初使用错误的 React 导出/未带版本的模块 URL，导致 Vite 重复 React 实例。
    修正测试替身的 import 后，真实断言通过；没有删除账号切换测试或放宽生产 auth。
@@ -154,10 +187,10 @@ LangGraph AsyncBatched Store 的 pending-task 日志；最后一次完整集成�
    deadline，实际 kill/reap 测试通过。已有镜像不复制 scripts，故将实现放进 app/deployment，
    保留原脚本入口，没有修改启动流程。
 
-### Docker 与真实外部服务
+### Docker 补验历史与当前云证据边界
 
 发布前补验已确认 Docker Desktop context 为 `desktop-linux`，endpoint 是本机 Unix socket，
-不是远端生产 Docker；client/server 都为 29.6.2。最后 `docker compose ps` 的服务状态为：
+不是远端生产 Docker；client/server 都为 29.6.2。当时最后 `docker compose ps` 的服务状态为：
 
 ```text
 SERVICE    IMAGE                    STATUS          PORTS
@@ -167,24 +200,28 @@ redis      redis:7.4.9-alpine        Up (healthy)    127.0.0.1:6379->6379/tcp
 ```
 
 以上为实际输出的关键列，省略易变的 Up 时长。Chroma 没有容器内 healthcheck，用独立 HTTP
-检查验证 executor/log client ready。三个服务保留运行；Prometheus/Grafana 未启动。
+检查验证 executor/log client ready。当时三个服务保留运行；Prometheus/Grafana 未启动。
+本次文档同步没有查询或改变现在的服务状态。
 五个原有 named volumes 均保留：`ai_travel_planner_codex_pack_` 前缀下的
 `postgres_data`、`redis_data`、`chroma_data`、`prometheus_data`、`grafana_data`。
 仅移除了本轮临时 helper 容器，其摘要先安全复制到忽略目录；没有删除任何 named volume。
 
-| 项目 | 本轮状态 |
+| 项目 | 已保存结果 / 当前证据状态 |
 | --- | --- |
 | 本地真实 PostgreSQL 双用户隔离 | LOCAL VERIFIED；本地签名 JWT，不是真实 Auth0 云登录 |
 | 本地真实 Chroma collection/query | LOCAL VERIFIED；77 条、384 维，镜像内两次读取/比较通过 |
-| 真实双 Auth0 用户云验收 | NOT VERIFIED；需用户账号操作与单独授权 |
-| 生产 Chroma-only 重启前后比较 | NOT VERIFIED；未获重启授权，尚无基线/后测 |
-| P19 公网行为和部署版本 | NOT VERIFIED；P19 未部署，未查询/修改云配置 |
-| 真实 Qwen/Auth0/Duffel/LiteAPI 调用 | **各 0 次** |
-| 视频 | NOT RECORDED；已有可执行录制脚本 |
+| 真实双 Auth0 用户云验收 | NOT VERIFIED；整体发布确认未包含真实账号、同 UUID、非空数据及跨用户操作的逐项结果 |
+| 生产 Chroma-only 重启前后比较 | NOT VERIFIED；未保存生产快照、仅重启 Chroma、直接查询与排除自动重建的记录 |
+| P19 前后端发布 / 公网部署版本 | 发布 USER-REPORTED COMPLETE；平台 deployment IDs、running SHA 和逐项公网行为未独立确认 |
+| 代理在 P19 本地验证及本次文档同步的真实 Qwen/Auth0/Duffel/LiteAPI 调用 | **各 0 次**；不是估计用户发布期间的调用次数 |
+| 视频 | NOT RECORDED；可选展示项，已有约 100 秒脚本，不阻塞实现/发布状态 |
 
 P18 的公开登录、JWT API、health/ready、Qwen intake、Duffel Test/LiteAPI Sandbox 结果、
 POST SSE、API 重启后 Tokyo 恢复和 hosted CI，仅保留为 **USER-REPORTED HISTORICAL**。
 API 重启恢复也不等于 Chroma 自身重启后索引持久化已经验证。
+`/ready` 对 PostgreSQL/Redis/Chroma 执行探测；Qwen 检查本地 provider 初始化/配置，
+Duffel/LiteAPI 检查配置是否齐备。其 `ok` 不表示本轮真实模型/供应商请求通过，
+更不能替代双用户隔离或 Chroma-only 重启证据。
 
 ### Chroma 工具的镜像证据与命令
 
@@ -192,7 +229,7 @@ API 重启恢复也不等于 Chroma 自身重启后索引持久化已经验证�
 `scripts/`。本地入口仍是 `uv run python scripts/check_chroma_persistence.py`；生产镜像入口
 必须为 `python -m app.deployment.chroma_evidence`。无需修改 Dockerfile、依赖或启动流程。
 
-本次实际 `docker --context desktop-linux build --tag travel-planner:p19-local .` 成功，镜像 ID
+发布前补验实际 `docker --context desktop-linux build --tag travel-planner:p19-local .` 成功，镜像 ID
 `sha256:aa8d718c5b6798fbd9befdf3735e293188e67aebcd9732dce43e59426550b6e2`。
 构建使用现有 Docker Desktop builder（约 8 GiB 可用），**没有声称 builder 被限制为 2 GiB**。
 工具运行容器实际 `memory.max=2147483648`（2 GiB、无额外 swap），UID 10001；help 在
@@ -243,14 +280,15 @@ PYTHONPATH=/app /app/.venv/bin/python -m app.deployment.chroma_evidence after --
 | [images/p19-02.jpg](images/p19-02.jpg) | 1280 × 1090 | 五路及 route failure、审核中；中间态才显示 Improving |
 | [images/p19-03.jpg](images/p19-03.jpg) | 1280 × 2736 | 62.5 分强制结束草稿、来源/费用限制；无 Improving/活动 spinner |
 
-均为实际本地应用 fixture 截图，不是新一次 provider 或云验收。逐张检查无明显裁切遮挡、
+均为实际本地应用 fixture 截图，不是新一次 provider 或云验收。实现阶段逐张检查无明显裁切遮挡、
 邮箱、凭据或可用认证状态。健康 Connected 也是 fixture，不是登录证明。
-第三张全页图较长，可打开原图。仅这三张进入待审文件；原始 trace/HAR/登录态/测试输出不在 Git。
+第三张全页图较长，可打开原图。三张均已随 `73e9933` 提交，本次确认文件仍存在；
+不会因发布完成改标为生产验收截图。原始 trace/HAR/登录态/测试输出不在该提交中。
 [DEMO_WALKTHROUGH.md](DEMO_WALKTHROUGH.md) 提供约 100 秒脚本和重新生成步骤。
 
 ## C. 安全复核、交接与 Git
 
-### Findings（按严重程度；此处针对本轮，不是完整渗透测试）
+### Findings（P19 实现验证记录；本次未重做代码 review，不是完整渗透测试）
 
 | 程度 | 问题 | 处理 |
 | --- | --- | --- |
@@ -265,9 +303,9 @@ PYTHONPATH=/app /app/.venv/bin/python -m app.deployment.chroma_evidence after --
 
 没有已知未修复的本轮 Critical/High/Medium 代码问题。真实配置可能渗入本地集成测试的
 Medium 风险已用进程级隔离和本地 transport 限制处理；测试覆盖缺口也已补齐。
-旧密钥撤销已获用户确认，但云授权和云验收仍是待办，不能写成“公网已修复”。
+旧密钥撤销与发布完成已有用户确认；具体云验收仍缺记录，不把发布完成写成“所有生产安全检查通过”。
 
-### 安全扫描证据与限度
+### 安全扫描证据与限度（实现阶段记录）
 
 - 首轮候选发现：旧 dist 的 private-key 分隔符，以及三个后端安全测试的合成 key 形状。
   已定位合成值用于测试 prompt/错误输出脱敏；RSA 登录测试密钥在测试进程生成，不落盘。
@@ -291,23 +329,25 @@ Medium 风险已用进程级隔离和本地 transport 限制处理；测试覆�
 | Duffel token | **USER CONFIRMED revoked — 2026-09-15** |
 | LiteAPI key | **USER CONFIRMED revoked — 2026-09-15** |
 
-用户本次明确确认三家曾暴露的旧凭据均已撤销，Railway 和本地使用替换后的凭据。
+用户已于 2026-09-15 明确确认三家曾暴露的旧凭据均已撤销，Railway 和本地使用替换后的凭据。
 这是用户确认记录，不是代理访问供应商控制台的独立验证；未提取、打印、复用或轮换任何值。
-此前 NOT CONFIRMED 已由本次明确确认取代；仓库扫描本身不能证明撤销。
+此前未确认状态已由用户明确确认取代；仓库扫描本身不能证明撤销。
 
-### 最少用户操作与安全发布顺序
+### 已完成发布交接与后续可选验收
 
-1. Review 当前未提交 P19 diff；上述旧凭据撤销已由用户确认，不把新值发到聊天。
-2. 用户另行批准发布窗口。**先新前端、刷新/关闭旧标签页（必要时短维护）、再新后端**。
-   新前端兼容旧字段缺失；旧严格 Zod 前端已实测拒绝新字段。其他严格消费者也需先升级。
-3. 在正确 P19 revisions 上做真实双用户非空数据验收；只运行获准的 provider/Qwen flow，
+1. P19 功能已提交为 `73e9933`；上述旧凭据撤销已由用户确认，不再列为待提交/待确认事项。
+2. 用户报告发布操作已完成。交接顺序为 **先新前端、刷新/关闭旧标签页（必要时短维护）、
+   再新后端**。具体平台执行细节未独立查询；旧严格 Zod 客户端不兼容的证据仍有效。
+   不擅自把 Railway 自动部署记为已恢复开启；当前开关需运维人员另行核对。
+3. 如补充真实双用户非空数据验收，应先核对实际 P19 revisions；只运行获准的 provider/Qwen flow，
    不为高分循环重试，不提高限额。读 state/history/刷新不应重新执行图。
-4. 另约 Chroma-only 维护窗口，按交接文档在已授权私网 API 容器中 before → 用户只重启
+4. 如补充 Chroma-only 验收，另约维护窗口，在已授权私网 API 容器中 before → 用户只重启
    Chroma → after。保留 volume；独立记录没有 API bootstrap/reindex，否则仍 NOT VERIFIED。
-5. 云结果与 README 一致后再录真实视频/发布。回滚时先后端，保留兼容的新前端。
+5. 视频未录制，属于可选展示，不阻塞 P19 实现或用户报告的发布完成。
+   未来若需回滚，先后端，保留兼容的新前端。
 
-不能强制所有已打开浏览器自动升级。请安排受控短维护窗口，通知用户关闭/刷新旧标签页，
-确认实际加载的新前端 revision 后再切后端；无法确认的旧标签页可能出现解析失败。
+不能强制所有已打开浏览器自动升级。发布交接采用受控窗口与用户刷新；完成确认不能证明
+每个旧标签页已刷新。后续兼容性发布仍须先核对新前端 revision；旧标签页可能出现解析失败。
 本地测试不能替代真实双用户和部署后浏览器验收。
 
 | 前端 / 后端 | 实际证据 | 发布判断 |
@@ -319,7 +359,7 @@ Medium 风险已用进程级隔离和本地 transport 限制处理；测试覆�
 兼容实验没有模拟一个“宽松旧客户端”；实际起始提交旧 schema 对 legacy plan 成功、对新
 plan/plan_completed 失败。没有放宽 Zod 或改变 wire contract 来掩盖发布风险。
 
-本轮没有暂存、commit、push、deploy、tag/release、云变量修改、生产 restart、新建真实账号、
+代理的实现/补验及本次文档同步没有自动暂存、commit、push、deploy、tag/release、云变量修改、生产 restart、新建真实账号、
 生产限流调整、付费模型/旅行调用、历史用户数据/volume 删除，也没有进入 P20。
 
 ### 可复现的本地集成命令
@@ -382,11 +422,14 @@ git diff --stat
 真实 Docker/Chroma/云测试需要单独满足前提和授权，不属于上面普通回归。
 完整 before/after 位置、权限、停止条件、超时边界见交接文档；不要使用 down -v。
 
-### 最终文件清单与 Git 状态
+### 功能提交前的历史文件清单（不是当前 Git 状态）
 
-共 **53 个 tracked modified + 21 个 untracked 新文件 = 74 个文件**，全部未暂存。
-`git diff --stat` 只统计 53 个 tracked 文件，不包含新文件或图片；Codex edited 文件计数
+提交前共 **53 个 tracked modified + 21 个 untracked 新文件 = 74 个文件**，当时全部未暂存；
+现已由实际提交 `73e9933` 收录。历史 `git diff --stat` 只统计 53 个 tracked 文件，不包含新文件或图片；Codex edited 文件计数
 不能代替 Git 候选清单。没有 .env、缓存、原始测试输出或认证状态。
+
+<details>
+<summary>保留发布前 Git 快照；当前状态见下方文档同步记录</summary>
 
 ```text
  M .dockerignore
@@ -465,10 +508,32 @@ git diff --stat
 ?? tests/review/test_product_quality.py
 ```
 
-Tracked diff 统计：`53 files changed, 500 insertions(+), 168 deletions(-)`。
+历史 tracked diff 统计：`53 files changed, 500 insertions(+), 168 deletions(-)`。
 
-仅建议的 commit message（本轮没有执行提交）：
+</details>
+
+### 本次 Markdown 同步检查与 Git 状态
+
+首次同步开始时 `git status --short` 无输出；再次复核时已有下面五份文档修改，全部保留，
+实际 HEAD 仍为 `73e9933`。复核仅澄清本报告与 implementation-notes 的起始状态时间口径，
+未修改代码/测试/镜像/CI/云配置，未暂存或提交。累计文档 diff 为：
 
 ```text
-fix: clarify itinerary quality and finalize acceptance checks
+ M README.md
+ M docs/26_PRODUCT_QUALITY_AND_HANDOFF.md
+ M docs/DEMO_WALKTHROUGH.md
+ M docs/P19_ACCEPTANCE_REPORT.md
+ M docs/implementation-notes.md
+```
+
+文档检查结果：68 个本地相对链接/锚点通过；三张图片存在且已纳入 P19 提交；21 个
+README 里程碑提交均在 HEAD 历史中。五份文档的有限凭据格式扫描无命中，但这不是
+全仓库秘密审计，也不能替代撤销确认。测试数量按原运行范围保留，证据标签逐项核对；
+`git diff --check` 通过，diff/status 只含上述五个文件，没有 staged/untracked 文件。
+本次不重新运行应用测试/构建，不访问公网或真实供应商，不修改 P18 历史报告。
+
+仅建议本次文档 commit message（不执行）：
+
+```text
+docs: finalize P19 status and project handoff
 ```
