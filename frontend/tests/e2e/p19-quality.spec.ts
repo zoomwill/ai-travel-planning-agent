@@ -108,19 +108,20 @@ test("P19 forced-finalized draft stops, discloses limits and survives refresh", 
 });
 
 test("mock SDK account switching clears private UI and scoped recent metadata", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  const moduleFailures: string[] = [];
+  page.on("response", (response) => {
+    if (response.request().resourceType() === "script" && response.status() >= 400) {
+      moduleFailures.push(`${response.status()} ${new URL(response.url()).pathname}`);
+    }
+  });
   // Test-only module interception exercises the actual AuthRoot and App. No Auth0 calls.
   await page.route("**/src/auth/config.ts", (route) => route.fulfill({ contentType: "application/javascript", body: `export function readFrontendConfig(){return {mode:"auth0",domain:"tenant.example",clientId:"fixture",audience:"https://fixture.example",apiBase:""}}` }));
-  await page.route("**/@auth0_auth0-react.js*", (route) => route.fulfill({ contentType: "application/javascript", body: `
-    import React from "/node_modules/.vite/deps/react.js${new URL(route.request().url()).search}";
-    const {useSyncExternalStore}=React;
-    let account="a"; const listeners=new Set();
-    const change=(value)=>{account=value;state=make();for(const notify of listeners)notify()};
-    const make=()=>({isAuthenticated:account!==null,isLoading:false,error:null,user:account?{sub:"auth0|fixture-"+account,name:"Local test account"}:undefined,getAccessTokenSilently:async()=>"fixture:"+account,loginWithRedirect:async()=>change("a"),logout:async()=>change(null)});
-    let state=make(); window.addEventListener("p19-account",event=>change(event.detail));
-    const subscribe=(fn)=>{listeners.add(fn);return ()=>listeners.delete(fn)};
-    export const Auth0Provider=({children})=>children;
-    export function useAuth0(){return useSyncExternalStore(subscribe,()=>state)};
-  ` }));
+  await page.route("**/@auth0_auth0-react.js*", (route) => route.fulfill({
+    contentType: "application/javascript",
+    body: 'export { Auth0Provider, useAuth0 } from "/tests/e2e/fixtures/auth0-sdk.ts";',
+  }));
   const scopes = ["a", "b"].map((a) => createHash("sha256").update(`tenant.example\0auth0|fixture-${a}`).digest("hex"));
   await page.addInitScript(({ ids, publicId }) => {
     ids.forEach((scope, index) => {
@@ -141,17 +142,27 @@ test("mock SDK account switching clears private UI and scoped recent metadata", 
     };
   }, { ids: scopes, publicId: thread });
   await page.route("**/api/v1/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    expect([
+      `/api/v1/agents/threads/${thread}/conversation`,
+      `/api/v1/agents/threads/${thread}/conversation/messages`,
+      `/api/v1/agents/threads/${thread}/state`,
+    ]).toContain(path);
     const authorization = route.request().headers().authorization;
     expect(["Bearer fixture:a", "Bearer fixture:b"]).toContain(authorization);
     const account = authorization === "Bearer fixture:b" ? "b" : "a";
     const city = account === "a" ? "Tokyo" : "Paris";
-    if (new URL(route.request().url()).pathname.endsWith("/state")) return route.fulfill({ json: { thread_id: thread, status: "complete", travel_plan: { ...forced, requirements: { ...planFixture.requirements, destination: city }, hotel: { ...planFixture.hotel, name: `Private ${account} hotel` } }, review_round: 3, final_score: 62.5 } });
+    if (path.endsWith("/state")) return route.fulfill({ json: { thread_id: thread, status: "complete", travel_plan: { ...forced, requirements: { ...planFixture.requirements, destination: city }, hotel: { ...planFixture.hotel, name: `Private ${account} hotel` } }, review_round: 3, final_score: 62.5 } });
     const late = route.request().method() === "POST";
     return route.fulfill({ json: conversationFixture({ status: "planned", plan_available: true, can_confirm: false, draft: { ...conversationFixture().draft, destination: late ? "Late private A" : city }, messages: [{ ...conversationFixture().messages[0], content: late ? "Late private A conversation" : `Private ${account} conversation about ${city}` }] }) });
   });
   await page.route("**/health", (route) => route.fulfill({ json: { status: "ok", service: "ai-travel-planner" } }));
   await page.goto("/");
-  await expect(page.getByText("Private a hotel")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+  await expect(page.getByText("Private a hotel")).toBeVisible().catch((error: unknown) => {
+    expect({ pageErrors, moduleFailures }).toEqual({ pageErrors: [], moduleFailures: [] });
+    throw error;
+  });
   await page.getByRole("button", { name: "Conversation", exact: true }).click();
   await expect(page.getByText("Private a conversation about Tokyo")).toBeVisible();
   await page.getByLabel("Describe your trip").fill("Update my private A trip");
@@ -174,8 +185,17 @@ test("mock SDK account switching clears private UI and scoped recent metadata", 
   expect(bRecent).toContain("Paris");
   expect(bRecent).not.toContain("Tokyo");
   expect(bRecent).not.toContain("Late private A");
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("p19-account", { detail: "a" })));
+  await expect(page.getByText("Private a hotel")).toBeVisible();
+  await expect(page.getByText("Private b hotel")).toHaveCount(0);
+  await page.getByRole("button", { name: "Conversation", exact: true }).click();
+  await expect(page.getByText("Private a conversation about Tokyo")).toBeVisible();
+  await expect(page.getByText("Private b conversation about Paris")).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("p19-account", { detail: "b" })));
+  await expect(page.getByText("Private b hotel")).toBeVisible();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Securing your session");
   await expect(page.getByText("Private b hotel")).toHaveCount(0);
   expect(await page.evaluate((scope) => localStorage.getItem(`travel-planner:recent-threads:auth:${scope}`), scopes[1])).toBeNull();
+  expect({ pageErrors, moduleFailures }).toEqual({ pageErrors: [], moduleFailures: [] });
 });

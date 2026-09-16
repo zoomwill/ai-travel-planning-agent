@@ -1191,3 +1191,73 @@ and separate verification boundaries, see [P19 acceptance](P19_ACCEPTANCE_REPORT
   image paths, milestones and evidence labels. No code/test/CI/Dockerfile edits, application
   test reruns, network verification, paid calls, service restart, commit, push, tag or release.
   Maintenance and optional improvements do not automatically open P20 or another phase.
+
+### 2026-09-16 — Post-P19 frontend CI account-switch fixture regression
+
+- Scope: started with a clean worktree at `76f85a7`, after the P19 documentation commit.
+  This is a focused test-fixture repair, not a restarted phase or a backend/auth change.
+  The owner reported two GitHub Actions failures, before the account-switch assertions.
+- Reproduction: after `npm ci`, both desktop-chromium and mobile-chromium failed waiting
+  for `Private a hotel`. Restarting with the generated cache passed both; two further
+  clean-install reproductions failed both again. The diagnostic run captured HTTP 504 for
+  `/node_modules/.vite/deps/react.js`, with no page exception. This was Vite's module load,
+  not an API/backend response. Increasing the assertion timeout would not repair it.
+- Root cause: the inline SDK replacement manually imported a Vite optimized React file
+  using the intercepted Auth0 module's `?v=` value. Cold optimization can give dependencies
+  different generations/hashes; Vite rejects stale optimized imports with HTTP 504. It also
+  owns CommonJS/ESM interop, so copying an internal URL/export shape is not a stable API.
+  This is a reproducible cache-dependent fixture bug, not evidence of a storage-seeding
+  race, real Auth0 configuration leak, or production account-isolation defect.
+- Precondition trace: the fake SDK starts with `auth0|fixture-a`. Both the fixture and the
+  real AuthRoot compute SHA-256 of `tenant.example` + NUL + that subject. `addInitScript`
+  writes each A/B `thread-id:auth:<scope>` and `recent-threads:auth:<scope>` before navigation.
+  The same public UUID is deliberate; bearer fixture identity selects each private
+  conversation, whose `plan_available` triggers the mocked state GET and private hotel.
+  No plan/hotel is seeded globally in localStorage. That initialization order was retained.
+- Minimal fix: move the fake SDK to `frontend/tests/e2e/fixtures/auth0-sdk.ts`, served and
+  transformed by Vite with a normal bare React import. The intercepted SDK only re-exports
+  that module. No production application import, Vite/Playwright/CI configuration change,
+  dependency change, extra retry, sleep, timeout increase, or deleted/skipped assertion.
+  Keep precise `/api/v1/` and `/health` interception; now assert every API path uses the
+  intended public UUID and report failed script paths/statuses without response bodies.
+  Existing non-empty A/B, late-A response, scoped recent metadata and logout assertions
+  remain; switching back to A and then B also restores only the matching private content.
+- Environment comparison: CI declares Node 24 on Ubuntu; local verification used Node
+  24.20.0/npm 11.19.0 on macOS and the unchanged lockfile, Playwright 1.62.1 with bundled
+  Chromium revision 1234 (151.0.7922.34). The exact failed runner's Node patch was not supplied.
+  CI uses VITE_AUTH_MODE=demo; the existing ordinary-test webServer forces demo, empty API
+  base and development deployment mode. Commands additionally used fake public Auth0
+  values and RUN_UI_E2E=0, never developer sessions or real cloud APIs. No .env file edited.
+- Final local results: clean-install targeted run 2 passed; then repeat-each=5, workers=2,
+  retries=0 passed 10 (5 per project). Full E2E passed 6 with 2 real-backend cases gated off;
+  Vitest passed 85 in 15 files; lint, typecheck and production-mode build passed. A prior
+  post-fix 10-pass run preceded a lint-only correction from async-without-await to explicit
+  Promise returns; the final repeated run above includes that correction. The existing
+  >500 kB build warning and npm installation-script warnings were not hidden or bypassed.
+- Repository checks: Ruff check/format passed (399 files), mypy passed (173 app files),
+  offline pytest passed 795 with 21 explicit skips. All real/infrastructure test gates
+  were disabled; no Docker integration, backend server, Auth0/Qwen/Duffel/LiteAPI call,
+  deployment, commit or push. No fixture SDK markers occur in the built production JS;
+  this bounded check is not a full security audit. Generated browser output remains ignored.
+  Hosted CI still requires the user's next authorized commit/push/run; local success is
+  not a GitHub Actions rerun result.
+
+Reproduce locally from a clean dependency install (fake public values only; do not deploy
+this build). Playwright's existing webServer overrides keep the fixture server in demo mode:
+
+```bash
+cd frontend
+export CI=1 RUN_UI_E2E=0 CAPTURE_P19_SCREENSHOTS=0 CAPTURE_UI_SCREENSHOTS=0
+export VITE_AUTH_MODE=auth0 VITE_AUTH0_DOMAIN=tenant.example VITE_AUTH0_CLIENT_ID=fixture
+export VITE_AUTH0_AUDIENCE=https://fixture.example VITE_API_BASE_URL=https://api.example VERCEL_ENV=production
+npm ci
+npm run test:e2e -- --grep 'mock SDK account switching clears private UI and scoped recent metadata' --project=desktop-chromium --project=mobile-chromium --repeat-each=5 --workers=2 --retries=0
+npm run lint
+npm run typecheck
+npm run test:run
+npm run build
+npm run test:e2e
+cd ..
+git diff --check
+git status --short
+```
