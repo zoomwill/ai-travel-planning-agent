@@ -88,9 +88,10 @@ async def test_postgres_parallel_state_and_user_memory_survive_reopen() -> None:
                     ),
                 )
                 assert isinstance(first["travel_plan"], TravelPlan)
-                assert len(first["search_results"]) == 5
-                assert len({item["task_id"] for item in first["search_results"]}) == 5
-                assert all(entry["status"] == "ok" for entry in first["search_summary"].values())
+                assert len(first["search_results"]) == 4
+                assert len({item["task_id"] for item in first["search_results"]}) == 4
+                assert first["search_summary"]["route"]["status"] == "error"
+                assert len(first["search_tasks"]) == 5
 
                 second_state = state_for_route("Tokyo", "Paris")
                 second = await graph.ainvoke(
@@ -99,7 +100,7 @@ async def test_postgres_parallel_state_and_user_memory_survive_reopen() -> None:
                     context=TravelRuntimeContext(user_id=user_id),
                 )
                 expected_fingerprint = create_request_fingerprint(second_state["requirements"])
-                assert len(second["search_results"]) == 5
+                assert len(second["search_results"]) == 4
                 assert {task["request_fingerprint"] for task in second["search_tasks"]} == {
                     expected_fingerprint
                 }
@@ -140,10 +141,10 @@ async def test_postgres_parallel_state_and_user_memory_survive_reopen() -> None:
                 assert isinstance(snapshot.values["travel_plan"], TravelPlan)
                 assert snapshot.values["requirements"].destination == "Paris"
                 assert len(snapshot.values["search_tasks"]) == 5
-                assert len(snapshot.values["search_results"]) == 5
-                assert len({item["task_id"] for item in snapshot.values["search_results"]}) == 5
+                assert len(snapshot.values["search_results"]) == 4
+                assert len({item["task_id"] for item in snapshot.values["search_results"]}) == 4
                 assert [item["kind"] for item in snapshot.values["search_results"]] == [
-                    kind.value for kind in SEARCH_KIND_ORDER
+                    kind.value for kind in SEARCH_KIND_ORDER if kind.value != "route"
                 ]
                 assert_current_destination(snapshot.values["search_results"], "Paris")
                 json.dumps(snapshot.values["search_results"])

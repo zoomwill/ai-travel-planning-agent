@@ -86,8 +86,13 @@ async def test_worker_calls_only_the_dispatched_backend_method(kind: SearchKind)
 
     update = await search_worker_node(worker_input, backend=backend)
 
-    assert len(update["search_results"]) == 1
-    assert update["search_results"][0]["kind"] == kind.value
+    if kind is SearchKind.ROUTE:
+        assert "search_results" not in update
+        assert update["tool_errors"][0]["error_type"] == "route_unavailable"
+        assert update["tool_errors"][0]["recoverable"] is False
+    else:
+        assert len(update["search_results"]) == 1
+        assert update["search_results"][0]["kind"] == kind.value
     assert backend.calls[kind] == 1
     assert sum(backend.calls.values()) == 1
     json.dumps(update)

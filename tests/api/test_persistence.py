@@ -81,22 +81,22 @@ def test_thread_plan_state_and_history_are_available(client: TestClient) -> None
         "hotels": {"status": "ok", "count": 2, "source": "demo"},
         "attractions": {"status": "ok", "count": 3, "source": "demo"},
         "weather": {"status": "ok", "count": 3, "source": "demo"},
-        "route": {"status": "ok", "count": 1, "source": "demo"},
+        "route": {"status": "error", "count": 0, "source": "demo"},
     }
-    assert plan.json()["tool_errors"] == []
+    assert [item["kind"] for item in plan.json()["tool_errors"]] == ["route"]
     assert plan.json()["review_status"] == "accepted"
     assert plan.json()["review_rounds"] == 1
-    assert plan.json()["final_score"] == 100
+    assert plan.json()["final_score"] == 97.5
     assert plan.json()["finalization_reason"] == "threshold_reached"
     assert plan.json()["review_summary"]["decision"] == "accept"
     assert "## Remembered preferences" in plan.json()["travel_plan"]["markdown"]
     assert state.status_code == 200
     assert state.json()["status"] == "complete"
-    assert state.json()["search_result_count"] == 5
-    assert state.json()["tool_error_count"] == 0
+    assert state.json()["search_result_count"] == 4
+    assert state.json()["tool_error_count"] == 1
     assert state.json()["review_status"] == "accepted"
     assert state.json()["review_round"] == 1
-    assert state.json()["final_score"] == 100
+    assert state.json()["final_score"] == 97.5
     assert state.json()["finalization_reason"] == "threshold_reached"
     assert state.json()["draft_present"] is True
     assert state.json()["review_history_count"] == 1
@@ -155,7 +155,7 @@ def test_same_thread_second_http_request_contains_only_new_destination(
         != first.json()["review_summary"]["draft_fingerprint"]
     )
     assert state.json()["travel_plan"]["requirements"]["destination"] == "Paris"
-    assert state.json()["search_result_count"] == 5
+    assert state.json()["search_result_count"] == 4
     assert state.json()["review_round"] == 1
     assert state.json()["review_history_count"] == 1
 

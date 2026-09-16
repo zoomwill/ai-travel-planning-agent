@@ -5,6 +5,8 @@ import os
 import httpx
 import pytest
 
+from tests.local_infrastructure import isolate_local_infrastructure
+
 os.environ["LANGGRAPH_STRICT_MSGPACK"] = "true"
 os.environ["TRAVEL_DATA_MODE"] = "demo"
 os.environ["AGENT_REASONING_MODE"] = "deterministic"
@@ -14,16 +16,26 @@ if os.environ.get("RUN_AUTH0_INTEGRATION_TESTS") != "1":
 
 
 @pytest.fixture(autouse=True)
-def forbid_ungated_provider_internet(monkeypatch):
+def local_integration_environment(request, monkeypatch):
+    """Marked local integration must never inherit remote hosts or provider modes."""
+    if request.node.get_closest_marker("integration") is not None:
+        isolate_local_infrastructure(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
+def forbid_ungated_provider_internet(request, monkeypatch):
     """MockTransport stays usable; real HTTP transports require separate provider gates."""
     original = httpx.AsyncHTTPTransport.handle_async_request
     original_sync = httpx.HTTPTransport.handle_request
+    local_only = request.node.get_closest_marker("integration") is not None
     gates = {
         "api.duffel.com": "RUN_DUFFEL_INTEGRATION_TESTS",
         "api.liteapi.travel": "RUN_LITEAPI_INTEGRATION_TESTS",
     }
 
     def check(request):
+        if local_only and request.url.host not in {"127.0.0.1", "localhost", "::1"}:
+            raise AssertionError("Local integration HTTP transport must use a loopback host")
         gate = gates.get(request.url.host)
         if request.url.host.endswith(".aliyuncs.com"):
             gate = "RUN_LLM_INTEGRATION_TESTS"

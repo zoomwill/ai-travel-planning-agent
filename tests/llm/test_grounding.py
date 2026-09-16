@@ -164,7 +164,7 @@ def test_grounded_assembly_preserves_dates_candidates_prices_and_total() -> None
         hotel_options=list(input_data.hotels.values()),
         attractions=list(input_data.attractions.values()),
         weather=providers.get_weather(trip),
-        route=providers.get_route(trip.origin, trip.destination),
+        route=None,
         grounded_selection=selection,
     )
 
@@ -197,7 +197,7 @@ def test_model_cannot_supply_invented_fact_fields() -> None:
 
 def test_prompt_bounds_untrusted_instructions_and_redacts_secret_shape() -> None:
     private = "sk-not-a-real-secret"
-    raw_key = "sk-ws-not-a-real-secret-12345"
+    raw_key = "sk-" + "A" * 32  # Synthetic credential shape, never a real key.
     bearer = "not-a-real-bearer-token-12345"
     dsn = "postgresql://travel:not-a-real-password@127.0.0.1/travel"
     malicious = (

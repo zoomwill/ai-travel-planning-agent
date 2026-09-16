@@ -14,7 +14,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
 from app.core.config import Settings
-from app.domain.models import Attraction, FlightOption, HotelOption, RouteSummary, WeatherSummary
+from app.domain.models import Attraction, FlightOption, HotelOption, WeatherSummary
 from app.graphs.context import TravelRuntimeContext
 from app.graphs.graph import build_travel_planning_graph
 from app.mcp_tools.client import build_mcp_client, create_mcp_runtime
@@ -120,7 +120,10 @@ async def test_real_mcp_transports_backend_graph_and_cleanup(
         isinstance(item, Attraction) for item in await runtime.backend.search_attractions(trip)
     )
     assert all(isinstance(item, WeatherSummary) for item in await runtime.backend.get_weather(trip))
-    assert isinstance(await runtime.backend.get_route(trip.origin, trip.destination), RouteSummary)
+    with pytest.raises(MCPToolLayerError) as unavailable_route:
+        await runtime.backend.get_route(trip.origin, trip.destination)
+    assert unavailable_route.value.error_type == "mcp_tool_failed"
+    assert unavailable_route.value.recoverable is False
 
     graph = build_travel_planning_graph(
         lambda query: ["P10 context remains available."],
@@ -130,7 +133,10 @@ async def test_real_mcp_transports_backend_graph_and_cleanup(
         make_state(),
         context=TravelRuntimeContext(user_id="p11-integration"),
     )
-    assert len(graph_result["search_results"]) == 5
+    assert len(graph_result["search_tasks"]) == 5
+    assert len(graph_result["search_results"]) == 4
+    assert graph_result["search_summary"]["route"]["status"] == "error"
+    assert "route_unavailable" in graph_result["travel_plan"].warnings
     assert graph_result["review_status"] == "accepted"
     assert graph_result["retrieved_context"] == ["P10 context remains available."]
     assert all("Client" not in repr(value) for value in graph_result.values())

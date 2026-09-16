@@ -122,7 +122,7 @@ async def test_user_namespace_isolation_and_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_credential_shapes_are_redacted_before_prompt_and_persistence() -> None:
-    raw_key = "sk-not-a-real-secret-123456"
+    raw_key = "sk-" + "A" * 32  # Synthetic credential shape, never a real key.
     raw_dsn = "postgresql://private:password@database/private"
     intake, provider = service([extraction()])
 

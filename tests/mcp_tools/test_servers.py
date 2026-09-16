@@ -66,6 +66,11 @@ async def test_every_tool_returns_deterministic_domain_data(
 
     envelope = MCPToolResponse.model_validate(first.structured_content)
     assert first.structured_content == second.structured_content
+    if tool_name == "get_route":
+        assert envelope.ok is False
+        assert envelope.data is None
+        assert envelope.error is not None
+        return
     assert envelope.ok is True
     if is_list:
         assert isinstance(envelope.data, list) and envelope.data

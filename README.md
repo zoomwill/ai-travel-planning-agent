@@ -15,6 +15,26 @@ Developer Test Mode, hotels use LiteAPI Sandbox, and attractions, weather and ro
 data. These are not production booking inventories. There is no booking or payment capability.
 Production API docs and public metrics are intentionally disabled.
 
+**P19 local update — cloud publication pending.** Unverified Demo route durations are now
+unavailable, and completed workflows distinguish reviewer acceptance from a forced-finalized
+draft. These fixes are local and have **not** been deployed to the links above. The route source
+still identifies the attempted Demo provider; it is not evidence of a successful route lookup.
+
+<details>
+<summary>Product screenshot — Local fixture demonstration (not cloud acceptance)</summary>
+
+![Local fixture demonstration: forced-finalized draft with explicit quality and source limits](docs/images/p19-03.jpg)
+
+This is the running local React application with intercepted fixture responses. Test/Sandbox
+badges demonstrate disclosure, not a new Duffel/LiteAPI request. The low review score and stopped
+improvement state are intentional. [All three screenshots and recording script](docs/DEMO_WALKTHROUGH.md).
+
+</details>
+
+[P19 acceptance report](docs/P19_ACCEPTANCE_REPORT.md) ·
+[Quality, compatibility and operator handoff](docs/26_PRODUCT_QUALITY_AND_HANDOFF.md) ·
+[Local setup](#local-development-quick-start)
+
 ---
 
 ## Overview
@@ -33,10 +53,15 @@ Qwen is therefore allowed to reason over supplied candidates and produce structu
 
 ## Current Status
 
-**P00–P18 are complete.** The application is publicly deployed on Vercel and Railway.
-Real public acceptance was completed on **2026-09-09**: Auth0 login, JWT-authorized API access,
+**P00–P18 implementation is complete; P19 is local, awaiting review and publication.**
+The P18 application is publicly deployed on Vercel and Railway.
+**USER-REPORTED HISTORICAL**, **2026-09-09**: Auth0 login, JWT-authorized API access,
 Qwen conversational intake, persistent planning, authenticated POST SSE and restoration of the
-previous plan after restarting the Railway API. Actual GitHub-hosted backend/frontend CI passed.
+previous plan after restarting the Railway API; GitHub-hosted backend/frontend CI passed.
+These historical results are not a fresh P19 cloud verification. P19 local tests are recorded
+separately; P19 **CLOUD VERIFIED: none**. Real production two-user isolation and a Chroma-only
+restart comparison remain pending. Historical Qwen/Duffel/LiteAPI credential revocation was
+**USER CONFIRMED on 2026-09-15**; no credential values are recorded.
 
 P18 adds authentication and authorization, pseudonymous multi-user resource isolation,
 Redis-backed request caps, exact production CORS/trusted hosts, containerized backend deployment,
@@ -72,7 +97,9 @@ evidence and the remaining verification boundaries.
 | Booking / payment | **Not implemented** |
 
 The application remains demo-first. `TRAVEL_DATA_MODE=external` uses per-kind selectors, defaulting
-to Duffel Flights + LiteAPI Hotels. Attractions, weather, and routes stay demo. The integrations
+to Duffel Flights + LiteAPI Hotels. Attractions and weather stay demo. In P19 the fifth route
+branch remains scheduled but returns explicit non-critical unavailability: there is no verified
+local/intercity route coverage. Old saved route text is warned about, not rewritten. The integrations
 use real HTTP APIs, but test/sandbox data is not production inventory or bookable pricing.
 Legacy `TRAVEL_DATA_MODE=duffel` still selects Flights + Stays. There is no booking/payment flow.
 Duffel Stays remains optional and NOT VERIFIED because account access was not granted during P17.
@@ -1652,6 +1679,9 @@ These commits document the incremental engineering history of this project.
 | React web frontend | [`docs/23_WEB_CHAT_FRONTEND.md`](docs/23_WEB_CHAT_FRONTEND.md) |
 | External travel data | [`docs/24_EXTERNAL_TRAVEL_DATA.md`](docs/24_EXTERNAL_TRAVEL_DATA.md) |
 | Authentication and deployment | [`docs/25_AUTH_AND_DEPLOYMENT.md`](docs/25_AUTH_AND_DEPLOYMENT.md) |
+| Product quality and operator handoff | [`docs/26_PRODUCT_QUALITY_AND_HANDOFF.md`](docs/26_PRODUCT_QUALITY_AND_HANDOFF.md) |
+| P19 local acceptance and pending cloud checks | [`docs/P19_ACCEPTANCE_REPORT.md`](docs/P19_ACCEPTANCE_REPORT.md) |
+| Screenshots and recording script | [`docs/DEMO_WALKTHROUGH.md`](docs/DEMO_WALKTHROUGH.md) |
 | P18 historical local acceptance | [`docs/P18_ACCEPTANCE_REPORT.md`](docs/P18_ACCEPTANCE_REPORT.md) |
 | P18 bootstrap hardening and local memory evidence | [`docs/P18_BOOTSTRAP_FIX_REPORT.md`](docs/P18_BOOTSTRAP_FIX_REPORT.md) |
 | RAG evaluation | [`docs/evaluation/P10_RAG_EVALUATION.md`](docs/evaluation/P10_RAG_EVALUATION.md) |
@@ -1666,19 +1696,18 @@ The P18 guide/reports retain their original implementation-stage status. For the
 
 ## P19 — Portfolio polish / product quality
 
-P18 is complete. Potential future scope only; none of this is implemented by this README update:
+Local P19 implementation corrects unverified route semantics, distinguishes accepted from
+forced-finalized drafts, stops terminal progress, and preserves quality during read-only
+restoration. It adds non-empty two-user isolation regressions, a read-only Chroma comparison
+helper, three labeled local fixture screenshots, and an operator/recording walkthrough.
 
-- correct the Demo route semantics revealed by public acceptance,
-- review forced-finalize UI state and improve it if needed,
-- polish architecture diagrams and capture public deployment screenshots,
-- short demo GIF/video,
-- GitHub README visual polish and release notes,
-- optional custom domain,
-- public security review,
-- real two-user production isolation acceptance,
-- separate Chroma restart-persistence acceptance,
-- cost/memory optimization,
-- potentially replace Demo route/weather/attraction data with real providers.
+Pre-publication local integration is now verified: **15 passed, 1 skipped** with real local
+PostgreSQL/Redis/Chroma and deterministic external services. The production-image read-only
+Chroma helper ran under a 2 GiB limit against the existing local collection; no Chroma restart
+was performed. See the acceptance report for compatibility evidence and controlled release order.
+Pending: review and authorized publication; P19 public behavior; real two-user production
+isolation; Chroma-only restart evidence; an actual recorded video. Historical credential
+revocation is user-confirmed. No new provider, booking feature, domain, or P20 work is included.
 
 ---
 

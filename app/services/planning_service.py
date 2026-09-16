@@ -17,6 +17,7 @@ from app.domain.models import (
     TripRequirements,
     WeatherSummary,
 )
+from app.domain.quality import PlanWarning
 from app.review.models import RevisionPolicy
 from app.services.mock_providers import (
     get_route,
@@ -25,6 +26,7 @@ from app.services.mock_providers import (
     search_flights,
     search_hotels,
 )
+from app.services.mock_providers.route_provider import RouteUnavailableError
 
 FlightSearch = Callable[[TripRequirements], list[FlightOption]]
 HotelSearch = Callable[[TripRequirements], list[HotelOption]]
@@ -118,6 +120,11 @@ def assemble_travel_plan_from_results(
 ) -> TravelPlan:
     """Combine validated search results without calling any provider."""
 
+    # No current route source has a verified coverage contract. Reject even old
+    # or injected Demo results before they can enter itinerary / Reviewer facts.
+    route = None
+    unavailable_searches = tuple(dict.fromkeys([*unavailable_searches, "route"]))
+
     if not flight_options:
         raise PlanningServiceError("flight selection")
     if not hotel_options:
@@ -158,6 +165,13 @@ def assemble_travel_plan_from_results(
         total_cost = flight.price + hotel_cost + activity_cost
         budget_warning = _build_budget_warning(requirements, total_cost)
         plan = TravelPlan(
+            warnings=[
+                PlanWarning.ROUTE_UNAVAILABLE,
+                PlanWarning.RETURN_FLIGHT_EXCLUDED,
+                *([PlanWarning.ATTRACTIONS_UNAVAILABLE] if not attractions else []),
+                *([PlanWarning.WEATHER_UNAVAILABLE] if not weather else []),
+                *([PlanWarning.EXCLUDED_HOTEL_FEES] if hotel.has_excluded_fees else []),
+            ],
             requirements=requirements,
             flight=flight,
             hotel=hotel,
@@ -232,11 +246,13 @@ def _get_weather(
 def _get_route(
     requirements: TripRequirements,
     providers: PlanningProviders,
-) -> RouteSummary:
+) -> RouteSummary | None:
     """Look up the independent trip origin-to-destination route."""
 
     try:
         return providers.get_route(requirements.origin, requirements.destination)
+    except RouteUnavailableError:
+        return None
     except Exception as exc:
         raise PlanningServiceError("route lookup") from exc
 

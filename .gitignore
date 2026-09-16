@@ -29,3 +29,6 @@ data/generated/
 
 # Local R session history
 .Rhistory
+# Private acceptance / browser auth state; never upload these as CI artifacts.
+.p19-private/
+frontend/.auth/

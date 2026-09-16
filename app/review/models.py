@@ -6,6 +6,7 @@ from typing import Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.models import QualityScore
+from app.domain.quality import ReviewIssueCode as ReviewIssueCode
 
 
 class ReviewDecision(StrEnum):
@@ -24,19 +25,6 @@ FinalizationReason: TypeAlias = Literal[
     "reviewer_failure",
     "recursion_limit_reached",
 ]
-
-
-class ReviewIssueCode(StrEnum):
-    """Stable machine-readable problems that Planner can act on."""
-
-    MISSING_REQUIRED_CONTENT = "missing_required_content"
-    BUDGET_OVERRUN = "budget_overrun"
-    ITINERARY_TOO_DENSE = "itinerary_too_dense"
-    PERSONALIZATION_MISSING = "personalization_missing"
-    NONCRITICAL_DATA_UNAVAILABLE = "noncritical_data_unavailable"
-    INCONSISTENT_DATES = "inconsistent_dates"
-    INVALID_COST_BREAKDOWN = "invalid_cost_breakdown"
-    GENERAL_QUALITY_ISSUE = "general_quality_issue"
 
 
 class ReviewModel(BaseModel):

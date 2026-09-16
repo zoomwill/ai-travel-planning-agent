@@ -21,6 +21,7 @@ from app.observability.instrumentation import (
 )
 from app.observability.metrics import MetricsRuntime
 from app.rag.models import AdvancedRetrievalResult, QueryBundle, RetrievalDiagnostics
+from app.services.mock_providers.route_provider import RouteUnavailableError
 from app.streaming.models import StreamBusinessEvent, StreamEventType
 from app.streaming.service import TravelPlanStream
 from tests.graphs.test_persistence import make_state
@@ -85,20 +86,25 @@ async def test_five_search_kinds_keep_parallel_backend_contract() -> None:
     metrics = MetricsRuntime.create()
     backend = InstrumentedSearchBackend(RecordingSearchBackend(), metrics, "direct")
     requirements = make_review_plan().requirements
-    await asyncio.gather(
+    results = await asyncio.gather(
         backend.search_flights(requirements),
         backend.search_hotels(requirements),
         backend.search_attractions(requirements),
         backend.get_weather(requirements),
         backend.get_route(requirements.origin, requirements.destination),
+        return_exceptions=True,
     )
+    assert isinstance(results[-1], RouteUnavailableError)
     text = _metrics_text(metrics)
     lines = [
         line for line in text.splitlines() if line.startswith("travel_planner_search_tasks_total{")
     ]
     for kind in ("flights", "hotels", "attractions", "weather", "route"):
+        expected_status = "error" if kind == "route" else "success"
         assert any(
-            f'kind="{kind}"' in line and 'backend="direct"' in line and 'status="success"' in line
+            f'kind="{kind}"' in line
+            and 'backend="direct"' in line
+            and f'status="{expected_status}"' in line
             for line in lines
         )
 

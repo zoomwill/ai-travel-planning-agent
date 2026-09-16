@@ -21,6 +21,7 @@ from app.mcp_tools.backend import MCPTravelSearchBackend
 from app.mcp_tools.models import MCPToolRequest, MCPToolResponse
 from app.search.models import JsonValue, SearchKind, dump_model_json
 from app.services.mock_providers import search_flights, search_hotels
+from app.services.mock_providers.route_provider import RouteUnavailableError
 from tests.external.duffel.helpers import make_client, offer, place, requirements, stay_result
 from tests.graphs.test_persistence import make_state
 
@@ -71,8 +72,9 @@ async def test_duffel_mode_is_external_for_two_kinds_and_demo_for_three() -> Non
         SearchKind.HOTELS: await backend.search_hotels(trip),
         SearchKind.ATTRACTIONS: await backend.search_attractions(trip),
         SearchKind.WEATHER: await backend.get_weather(trip),
-        SearchKind.ROUTE: [await backend.get_route(trip.origin, trip.destination)],
     }
+    with pytest.raises(RouteUnavailableError):
+        await backend.get_route(trip.origin, trip.destination)
     await client.aclose()  # type: ignore[attr-defined]
 
     assert {kind: values[0].data_source for kind, values in results.items()} == {
@@ -80,7 +82,6 @@ async def test_duffel_mode_is_external_for_two_kinds_and_demo_for_three() -> Non
         SearchKind.HOTELS: TravelDataSource.DUFFEL_TEST,
         SearchKind.ATTRACTIONS: TravelDataSource.DEMO,
         SearchKind.WEATHER: TravelDataSource.DEMO,
-        SearchKind.ROUTE: TravelDataSource.DEMO,
     }
 
 

@@ -6,7 +6,7 @@ from typing import NoReturn
 
 import pytest
 
-from app.domain.models import Currency, TravelPlan, TripRequirements
+from app.domain.models import Currency, RouteSummary, TravelPlan, TripRequirements
 from app.graphs.nodes.aggregate_search_results import aggregate_search_results_node
 from app.graphs.nodes.planner import planner_node
 from app.graphs.state import TravelPlanState
@@ -49,7 +49,17 @@ def make_completed_search_state() -> TravelPlanState:
             dump_model_json(item) for item in providers.get_weather(requirements)
         ],
         SearchKind.ROUTE.value: [
-            dump_model_json(providers.get_route(requirements.origin, requirements.destination))
+            # Deliberately retain a legacy, invalid intercity Demo estimate.
+            dump_model_json(
+                RouteSummary(
+                    origin=requirements.origin,
+                    destination=requirements.destination,
+                    transport_mode="public_transit",
+                    duration_minutes=29,
+                    estimated_cost="8",
+                    currency="CNY",
+                )
+            )
         ],
     }
     search_results = [

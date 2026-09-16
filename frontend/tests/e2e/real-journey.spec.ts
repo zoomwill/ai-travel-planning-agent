@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import process from "node:process";
 
+// Real login / provider sessions must never produce credential-bearing artifacts.
+test.use({ trace: "off", screenshot: "off", video: "off" });
+
 test("gated real backend conversation and planning journey", async ({ page }, testInfo) => {
   test.skip(process.env.RUN_UI_E2E !== "1", "Set RUN_UI_E2E=1 for one explicit paid flow.");
   test.skip(testInfo.project.name !== "desktop-chromium", "The real paid flow runs once, not per viewport.");

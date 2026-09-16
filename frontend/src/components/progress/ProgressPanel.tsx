@@ -24,6 +24,7 @@ function StatusIcon({ status }: { status: ProgressStatus }) {
   if (status === "completed") return <Check className="text-emerald-600" aria-label="Completed" size={16} />;
   if (status === "failed") return <X className="text-rose-600" aria-label="Failed" size={16} />;
   if (status === "running") return <LoaderCircle className="animate-spin text-indigo-600" aria-label="In progress" size={16} />;
+  if (status === "stopped") return <Circle className="text-slate-400" aria-label="Stopped" size={15} />;
   return <Circle className="text-slate-300" aria-label="Pending" size={15} />;
 }
 
@@ -33,8 +34,8 @@ export function ProgressPanel({ progress, onStop }: { progress: PlanningProgress
   return (
     <section className="progress-panel" aria-labelledby="progress-heading">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="eyebrow">Agent progress</p><h2 id="progress-heading" className="text-xl font-bold text-slate-950">Planning your trip</h2></div>
-        {onStop !== undefined && <button className="button-secondary" type="button" onClick={onStop}>Stop</button>}
+        <div><p className="eyebrow">Agent progress</p><h2 id="progress-heading" className="text-xl font-bold text-slate-950">{progress.terminal ? "Workflow ended" : "Planning your trip"}</h2></div>
+        {!progress.terminal && onStop !== undefined && <button className="button-secondary" type="button" onClick={onStop}>Stop</button>}
       </div>
       <p className="sr-only" aria-live="polite">{progress.latestMessage}</p>
       <ol className="mt-6 space-y-3">
@@ -59,13 +60,13 @@ export function ProgressPanel({ progress, onStop }: { progress: PlanningProgress
           <div className="mt-4 space-y-3">
             {Object.entries(latestReview.scores).map(([name, value]) => (
               <div key={name}>
-                <div className="mb-1 flex justify-between text-xs text-slate-500"><span>{name.replaceAll("_", " ")}</span><span>{Math.round(value)}</span></div>
+                <div className="mb-1 flex justify-between text-xs text-slate-500"><span>{name.replaceAll("_", " ")}</span><span>{value}</span></div>
                 <div className="score-track"><span style={{ width: `${value}%` }} /></div>
               </div>
             ))}
           </div>
           <p className="mt-4 text-sm leading-6 text-slate-600">{latestReview.critique}</p>
-          {progress.revisionRound !== null && <p className="mt-3 font-medium text-indigo-700">Improving your itinerary…</p>}
+          {!progress.terminal && progress.revisionRound !== null && <p className="mt-3 font-medium text-indigo-700">Improving your itinerary…</p>}
         </div>
       )}
 

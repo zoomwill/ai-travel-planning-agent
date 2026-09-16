@@ -29,7 +29,7 @@ from app.intake.models import (
     TripRequirementPatch,
     complete_trip_requirements,
 )
-from app.services.mock_providers import get_route, get_weather, search_attractions, search_flights
+from app.services.mock_providers import get_weather, search_attractions, search_flights
 from app.services.planning_service import assemble_travel_plan_from_results
 from tests.external.liteapi.helpers import Resolver, client, offer, payload, response, trip
 
@@ -280,7 +280,7 @@ async def test_intake_to_daily_plan_to_hotel_price_date_contract():
         hotel_options=[hotel],
         attractions=search_attractions(requirements),
         weather=get_weather(requirements),
-        route=get_route(requirements.origin, requirements.destination),
+        route=None,
         data_sources=TravelDataSources(hotels=TravelDataSource.LITEAPI_SANDBOX),
     )
     assert [day.date.day for day in plan.daily_itinerary] == [12, 13, 14, 15, 16]

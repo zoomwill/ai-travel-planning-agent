@@ -116,9 +116,6 @@ export default function App() {
             {state.finalPlan !== null && showResults ? (
               <ItineraryView
                 plan={state.finalPlan}
-                {...(state.progress.reviews.at(-1) === undefined
-                  ? {}
-                  : { review: state.progress.reviews.at(-1)! })}
               />
             ) : (
               <ChatPanel conversation={state.conversation} phase={state.phase} optimisticMessage={state.optimisticMessage} failedMessage={state.failedMessage} onSend={send} />

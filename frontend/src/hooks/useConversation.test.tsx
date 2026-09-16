@@ -24,6 +24,27 @@ const mockedReset = vi.mocked(resetConversation);
 const mockedSend = vi.mocked(sendConversationMessage);
 
 describe("useConversation", () => {
+  it("does not restore a plan from an errored checkpoint", async () => {
+    mockedGet.mockResolvedValue(conversationFixture({ status: "planned", plan_available: true }));
+    mockedGetState.mockResolvedValue({ thread_id: "thread", status: "error", travel_plan: planFixture, review_round: 3, final_score: null });
+    const updateTitle = vi.fn();
+    const { result } = renderHook(() => useConversation("user", "thread", updateTitle));
+    await waitFor(() => expect(mockedGetState).toHaveBeenCalled());
+    expect(result.current.state.finalPlan).toBeNull();
+  });
+
+  it("ignores an old account request even if an aborted promise resolves later", async () => {
+    let finishOld!: (value: ReturnType<typeof conversationFixture>) => void;
+    mockedGet.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }));
+    mockedGet.mockResolvedValue(conversationFixture({ draft: { ...conversationFixture().draft, destination: "Paris" } }));
+    const updateTitle = vi.fn();
+    const { result, rerender } = renderHook(({ user }) => useConversation(user, "same-thread", updateTitle), { initialProps: { user: "a" } });
+    rerender({ user: "b" });
+    await waitFor(() => expect(result.current.state.conversation?.draft.destination).toBe("Paris"));
+    await act(async () => { finishOld(conversationFixture()); await Promise.resolve(); });
+    expect(result.current.state.conversation?.draft.destination).toBe("Paris");
+    expect(updateTitle).not.toHaveBeenCalledWith("Tokyo");
+  });
   it("turns a missing persisted conversation into a new empty UI", async () => {
     mockedGet.mockRejectedValue(
       new AppError("No conversation.", { code: "intake_not_found", status: 404 }),

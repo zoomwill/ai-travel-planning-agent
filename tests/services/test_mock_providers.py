@@ -10,7 +10,6 @@ from app.domain.models import (
     Currency,
     FlightOption,
     HotelOption,
-    RouteSummary,
     TripRequirements,
     WeatherSummary,
 )
@@ -22,6 +21,7 @@ from app.services.mock_providers import (
     search_flights,
     search_hotels,
 )
+from app.services.mock_providers.route_provider import RouteUnavailableError
 
 
 def make_requirements(
@@ -49,7 +49,9 @@ def test_same_input_always_returns_identical_results() -> None:
     assert search_hotels(requirements) == search_hotels(requirements)
     assert search_attractions(requirements) == search_attractions(requirements)
     assert get_weather(requirements) == get_weather(requirements)
-    assert get_route("Tokyo Station", "Asakusa") == get_route("Tokyo Station", "Asakusa")
+    for _ in range(2):
+        with pytest.raises(RouteUnavailableError):
+            get_route("Tokyo Station", "Asakusa")
 
 
 def test_every_provider_returns_the_declared_model_type() -> None:
@@ -59,7 +61,8 @@ def test_every_provider_returns_the_declared_model_type() -> None:
     assert all(isinstance(option, HotelOption) for option in search_hotels(requirements))
     assert all(isinstance(item, Attraction) for item in search_attractions(requirements))
     assert all(isinstance(day, WeatherSummary) for day in get_weather(requirements))
-    assert isinstance(get_route("Tokyo Station", "Asakusa"), RouteSummary)
+    with pytest.raises(RouteUnavailableError):
+        get_route("Tokyo Station", "Asakusa")
 
 
 def test_every_mock_result_can_be_validated_again() -> None:
@@ -69,7 +72,6 @@ def test_every_mock_result_can_be_validated_again() -> None:
         *search_hotels(requirements),
         *search_attractions(requirements),
         *get_weather(requirements),
-        get_route("Tokyo Station", "Asakusa"),
     ]
 
     for result in results:

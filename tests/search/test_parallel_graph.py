@@ -57,7 +57,7 @@ async def test_planner_does_not_repeat_any_provider_search() -> None:
 
 @pytest.mark.asyncio
 async def test_noncritical_weather_failure_returns_degraded_plan() -> None:
-    """Weather failure preserves four successes and never invents a forecast."""
+    """Weather and unsupported route preserve three successes, without invented facts."""
 
     backend = RecordingSearchBackend(fail_kind=SearchKind.WEATHER)
     graph = build_travel_planning_graph(
@@ -71,8 +71,8 @@ async def test_noncritical_weather_failure_returns_degraded_plan() -> None:
     )
 
     assert result["error"] is None
-    assert len(result["search_results"]) == 4
-    assert len(result["tool_errors"]) == 1
+    assert len(result["search_results"]) == 3
+    assert {item["kind"] for item in result["tool_errors"]} == {"weather", "route"}
     assert result["search_summary"]["weather"] == {
         "status": "error",
         "count": 0,
@@ -99,7 +99,7 @@ async def test_critical_flight_failure_keeps_other_results_without_plan() -> Non
 
     assert result["travel_plan"] is None
     assert result["error"] == "critical_search_failed:flights"
-    assert len(result["search_results"]) == 4
+    assert len(result["search_results"]) == 3
     assert result["tool_errors"][0]["kind"] == "flights"
 
 
@@ -135,7 +135,8 @@ async def test_same_thread_second_request_overwrites_old_search_state() -> None:
 
     expected_fingerprint = create_request_fingerprint(paris_state["requirements"])
     assert len(result["search_tasks"]) == 5
-    assert len(result["search_results"]) == 5
+    assert len(result["search_results"]) == 4
+    assert result["search_summary"]["route"]["status"] == "error"
     assert {task["request_fingerprint"] for task in result["search_tasks"]} == {
         expected_fingerprint
     }
@@ -171,6 +172,6 @@ async def test_threads_remain_isolated_and_strict_state_round_trips() -> None:
 
     assert tokyo_snapshot.values["requirements"].destination == "Tokyo"
     assert paris_snapshot.values["requirements"].destination == "Paris"
-    assert len(tokyo_snapshot.values["search_results"]) == 5
-    assert len(paris_snapshot.values["search_results"]) == 5
+    assert len(tokyo_snapshot.values["search_results"]) == 4
+    assert len(paris_snapshot.values["search_results"]) == 4
     json.dumps(paris_snapshot.values["search_results"])

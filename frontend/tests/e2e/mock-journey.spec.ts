@@ -18,7 +18,10 @@ const plan = {
 
 // Fake browser payloads exercise mixed provenance without contacting either provider.
 plan.flight.data_source = "duffel_test";
-const mixedPlan = { ...plan, hotel: { ...plan.hotel, data_source: "liteapi_sandbox",
+const mixedPlan = { ...plan,
+  quality: { review_status: "accepted", review_rounds: 1, final_score: 91, finalization_reason: "threshold_reached", issue_codes: ["noncritical_data_unavailable"] },
+  warnings: ["route_unavailable", "return_flight_excluded", "excluded_hotel_fees"],
+  hotel: { ...plan.hotel, data_source: "liteapi_sandbox",
   total_stay_price: "501.01", price_per_night: "100.20", stay_nights: 5, room_name: "Standard Room",
   board_name: "Room Only", has_excluded_fees: true } };
 
@@ -42,7 +45,7 @@ function conversation(status: "collecting" | "awaiting_confirmation", complete: 
 }
 
 function event(eventType: string, data: object, sequence: number, node = "agent_runtime") {
-  return { event_id: sequence, sequence, thread_id: threadId, timestamp: "2026-08-27T12:00:00Z", node, status: eventType === "search_started" || eventType === "run_started" ? "started" : "completed", event_type: eventType, message: `${eventType} message`, data };
+  return { event_id: sequence, sequence, thread_id: threadId, timestamp: "2026-08-27T12:00:00Z", node, status: eventType === "search_failed" ? "failed" : eventType === "search_started" || eventType === "run_started" ? "started" : "completed", event_type: eventType, message: `${eventType} message`, data };
 }
 
 async function installRoutes(page: Page): Promise<void> {
@@ -77,7 +80,7 @@ async function installRoutes(page: Page): Promise<void> {
       event("node_started", {}, 4, "advanced_retriever"),
       event("retrieval_completed", { returned_parent_count: 1, query_variant_count: 3, cache_status: "miss", metadata_filter_applied: false, metadata_filter_fallback_used: false }, 5, "advanced_retriever"),
       event("node_completed", {}, 6, "advanced_retriever"),
-      ...(["flights", "hotels", "attractions", "weather", "route"] as const).flatMap((kind, index) => [event("search_started", { search_kind: kind }, 7 + index * 2, "travel_search"), event("search_completed", { search_kind: kind, status: "ok", result_count: 1, source: plan.data_sources[kind] }, 8 + index * 2, "travel_search")]),
+      ...(["flights", "hotels", "attractions", "weather", "route"] as const).flatMap((kind, index) => [event("search_started", { search_kind: kind }, 7 + index * 2, "travel_search"), kind === "route" ? event("search_failed", { search_kind: kind, error_code: "route_unavailable", recoverable: false }, 8 + index * 2, "travel_search") : event("search_completed", { search_kind: kind, status: "ok", result_count: 1, source: plan.data_sources[kind] }, 8 + index * 2, "travel_search")]),
       event("node_started", {}, 17, "planner"),
       event("node_completed", {}, 18, "planner"),
       event("review_completed", { review_round: 1, decision: "accept", scores: { completeness: 90, feasibility: 88, personalization: 92, budget_fit: 95, overall_score: 91 }, issue_codes: [], critique: "The plan is ready.", suggested_changes: [] }, 19, "reviewer"),
@@ -105,6 +108,7 @@ test("mock two-turn chat confirms through POST SSE and renders the itinerary", a
   await confirm.click();
   await expect(page.getByRole("heading", { name: /Cleveland.*Tokyo/ })).toBeVisible();
   await expect(page.getByText("Tokyo Quiet Hotel")).toBeVisible();
+  await expect(page.getByText("Reviewer accepted — verify travel details").first()).toBeVisible();
   await expect(page.getByText("LiteAPI Sandbox", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Duffel Test · Test data", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Demo", { exact: true }).first()).toBeVisible();

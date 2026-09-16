@@ -33,14 +33,16 @@ export function useConversation(
     dispatch({ type: "LOAD_START" });
     try {
       const conversation = await getConversation(threadId, userId, controller.signal, getAccessToken);
+      if (controller.signal.aborted || activeRequest.current !== controller) return;
       dispatch({ type: "CONVERSATION_RECEIVED", conversation });
       if (conversation.draft.destination !== null) updateTitle(conversation.draft.destination);
       if (conversation.plan_available) {
         const snapshot = await getThreadState(threadId, controller.signal, getAccessToken);
-        if (snapshot.travel_plan !== null) dispatch({ type: "PLAN_RESTORED", plan: snapshot.travel_plan });
+        if (controller.signal.aborted || activeRequest.current !== controller) return;
+        if (snapshot.status === "complete" && snapshot.travel_plan !== null) dispatch({ type: "PLAN_RESTORED", plan: snapshot.travel_plan });
       }
     } catch (error) {
-      if (isAbortError(error)) return;
+      if (isAbortError(error) || controller.signal.aborted || activeRequest.current !== controller) return;
       const appError = toAppError(error);
       if (appError instanceof AppError && appError.status === 404) dispatch({ type: "LOAD_EMPTY" });
       else dispatch({ type: "SHOW_ERROR", error: appError });
@@ -68,10 +70,11 @@ export function useConversation(
           controller.signal,
           getAccessToken,
         );
+        if (controller.signal.aborted || activeRequest.current !== controller) return;
         dispatch({ type: "CONVERSATION_RECEIVED", conversation });
         if (conversation.draft.destination !== null) updateTitle(conversation.draft.destination);
       } catch (error) {
-        if (!isAbortError(error)) {
+        if (!isAbortError(error) && !controller.signal.aborted && activeRequest.current === controller) {
           dispatch({ type: "SEND_FAILED", message: trimmed, error: toAppError(error) });
         }
       } finally {
@@ -90,11 +93,12 @@ export function useConversation(
         return;
       }
       const conversation = await resetConversation(threadId, userId, controller.signal, getAccessToken);
+      if (controller.signal.aborted || activeRequest.current !== controller) return;
       dispatch({ type: "CLEAR_TRIP" });
       dispatch({ type: "CONVERSATION_RECEIVED", conversation });
       updateTitle("New trip");
     } catch (error) {
-      if (!isAbortError(error)) dispatch({ type: "SHOW_ERROR", error: toAppError(error) });
+      if (!isAbortError(error) && !controller.signal.aborted && activeRequest.current === controller) dispatch({ type: "SHOW_ERROR", error: toAppError(error) });
     } finally {
       if (activeRequest.current === controller) activeRequest.current = null;
     }

@@ -22,6 +22,7 @@ _NODE_NAMES: dict[str, str] = {
     "finalize_plan": "finalize_plan",
 }
 _SEARCH_ERROR_CODES = {
+    "route_unavailable",
     "empty_result",
     "invalid_result",
     "provider_error",

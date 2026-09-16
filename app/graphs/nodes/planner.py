@@ -244,14 +244,9 @@ def _prepare_planning_inputs(
     if not weather:
         unavailable.append(SearchKind.WEATHER.value)
 
-    try:
-        routes = _validate_models(
-            RouteSummary,
-            _available_result_data(state, SearchKind.ROUTE),
-        )
-    except Exception:
-        routes = []
-    route = routes[0] if routes else None
+    # Historical/injected route JSON has no verified local/intercity scope.
+    # Do not supply it to either deterministic or Qwen planning.
+    route = None
     if route is None:
         unavailable.append(SearchKind.ROUTE.value)
 

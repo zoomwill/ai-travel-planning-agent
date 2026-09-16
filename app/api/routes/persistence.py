@@ -23,6 +23,7 @@ from app.observability.context import pseudonymous_ref
 from app.observability.instrumentation import invoke_graph_once
 from app.observability.logging import log_event
 from app.review.models import PlanReview
+from app.review.presentation import present_plan
 from app.schemas.persistence import (
     ThreadHistoryItem,
     ThreadHistoryResponse,
@@ -383,7 +384,7 @@ async def execute_thread_plan(
         thread_id=validated_thread_id,
         user_id=validated_user_id,
         search_backend_mode=final_state.get("search_backend_mode", "direct"),
-        travel_plan=travel_plan,
+        travel_plan=present_plan(TravelPlan.model_validate(travel_plan), final_state),
         remembered_preferences=final_state.get("remembered_preferences", []),
         search_summary=final_state.get("search_summary", {}),
         tool_errors=final_state.get("tool_errors", []),
@@ -428,7 +429,9 @@ async def get_thread_state(thread_id: str, request: Request) -> ThreadStateRespo
         )
     travel_plan_value = values.get("travel_plan")
     travel_plan = (
-        TravelPlan.model_validate(travel_plan_value) if travel_plan_value is not None else None
+        present_plan(TravelPlan.model_validate(travel_plan_value), values)
+        if travel_plan_value is not None and not values.get("error")
+        else None
     )
     review_summary = _validated_review(values.get("current_review"))
     return ThreadStateResponse(
@@ -476,8 +479,16 @@ async def get_thread_history(
             limit=limit,
         ):
             values = cast(dict[str, Any], snapshot.values)
+            plan_value = values.get("travel_plan")
+            plan = (
+                present_plan(TravelPlan.model_validate(plan_value), values)
+                if plan_value is not None and not values.get("error")
+                else None
+            )
             checkpoints.append(
                 ThreadHistoryItem(
+                    quality=plan.quality if plan is not None else None,
+                    warnings=plan.warnings if plan is not None else [],
                     checkpoint_id=_snapshot_checkpoint_id(snapshot),
                     created_at=snapshot.created_at,
                     next=list(snapshot.next),

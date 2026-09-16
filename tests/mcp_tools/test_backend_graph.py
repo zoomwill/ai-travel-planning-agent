@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from app.domain.models import Attraction, FlightOption, HotelOption, RouteSummary, WeatherSummary
+from app.domain.models import Attraction, FlightOption, HotelOption, WeatherSummary
 from app.graphs.context import TravelRuntimeContext
 from app.graphs.graph import build_travel_planning_graph
 from app.mcp_tools.backend import MCPTravelSearchBackend
@@ -37,12 +37,7 @@ class ProviderInvoker:
         elif tool_name == "get_weather":
             data = [dump_model_json(item) for item in mock_providers.get_weather(domain)]
         else:
-            data = dump_model_json(
-                mock_providers.get_route(
-                    request.route_origin or domain.origin,
-                    request.route_destination or domain.destination,
-                )
-            )
+            return failed_response(request, "get_route")
         return MCPToolResponse(
             ok=True,
             tool_name=tool_name,
@@ -78,13 +73,13 @@ async def test_backend_maps_all_five_results_to_existing_domain_models() -> None
     hotels = await backend.search_hotels(trip)
     attractions = await backend.search_attractions(trip)
     weather = await backend.get_weather(trip)
-    route = await backend.get_route(trip.origin, trip.destination)
+    with pytest.raises(MCPToolLayerError):
+        await backend.get_route(trip.origin, trip.destination)
 
     assert all(isinstance(item, FlightOption) for item in flights)
     assert all(isinstance(item, HotelOption) for item in hotels)
     assert all(isinstance(item, Attraction) for item in attractions)
     assert all(isinstance(item, WeatherSummary) for item in weather)
-    assert isinstance(route, RouteSummary)
     assert sorted(invoker.calls) == [
         "get_route",
         "get_weather",
@@ -150,8 +145,9 @@ async def test_graph_keeps_parallel_search_review_rag_and_json_safe_state() -> N
     )
 
     assert result["travel_plan"] is not None
-    assert len(result["search_results"]) == 5
-    assert len({item["task_id"] for item in result["search_results"]}) == 5
+    assert len(result["search_results"]) == 4
+    assert len({item["task_id"] for item in result["search_results"]}) == 4
+    assert result["search_summary"]["route"]["status"] == "error"
     assert sorted(invoker.calls) == [
         "get_route",
         "get_weather",
@@ -178,4 +174,5 @@ async def test_graph_enters_all_five_mcp_calls_before_any_can_finish() -> None:
     )
 
     assert len(invoker.entered) == 5
-    assert len(result["search_results"]) == 5
+    assert len(result["search_results"]) == 4
+    assert len(result["search_tasks"]) == 5

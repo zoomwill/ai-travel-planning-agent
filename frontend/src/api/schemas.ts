@@ -113,9 +113,21 @@ const dailyItinerarySchema = z
   })
   .strict();
 
+export const planQualitySchema = z.object({
+  review_status: z.enum(["accepted", "forced_finalized", "unavailable"]),
+  review_rounds: z.number().int().nonnegative(),
+  final_score: z.number().min(0).max(100).nullable(),
+  finalization_reason: z.enum(["threshold_reached", "max_review_rounds_reached"]).nullable(),
+  issue_codes: z.array(z.enum(["missing_required_content", "budget_overrun", "itinerary_too_dense", "personalization_missing", "noncritical_data_unavailable", "inconsistent_dates", "invalid_cost_breakdown", "general_quality_issue"])).max(8),
+}).strict();
+
+export const planWarningSchema = z.enum(["route_unavailable", "historical_route_unverified", "attractions_unavailable", "weather_unavailable", "return_flight_excluded", "excluded_hotel_fees"]);
+
 export const travelPlanSchema = z
   .object({
     requirements: tripRequirementsSchema,
+    quality: planQualitySchema.nullable().default(null),
+    warnings: z.array(planWarningSchema).max(6).default([]),
     flight: flightSchema,
     hotel: hotelSchema,
     daily_itinerary: z.array(dailyItinerarySchema).min(1),

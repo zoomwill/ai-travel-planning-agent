@@ -188,7 +188,7 @@ async def test_noncritical_degraded_plan_is_still_reviewed() -> None:
     )
 
     assert reviewer.calls == 1
-    assert len(result["search_results"]) == 4
+    assert len(result["search_results"]) == 3
     assert result["tool_errors"][0]["kind"] == "weather"
     assert "Weather information unavailable." in result["travel_plan"].markdown
 

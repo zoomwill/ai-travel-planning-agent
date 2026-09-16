@@ -166,10 +166,7 @@ def test_pure_assembly_never_calls_provider_wrappers(
     hotels = MOCK_PLANNING_PROVIDERS.search_hotels(requirements)
     attractions = MOCK_PLANNING_PROVIDERS.search_attractions(requirements)
     weather = MOCK_PLANNING_PROVIDERS.get_weather(requirements)
-    route = MOCK_PLANNING_PROVIDERS.get_route(
-        requirements.origin,
-        requirements.destination,
-    )
+    route = None  # P19 has no verified route coverage.
 
     def repeated_call(*_: object) -> None:
         raise AssertionError("pure assembly called a provider wrapper")
@@ -212,10 +209,7 @@ def test_noncritical_missing_data_produces_explicit_degraded_plan(
     hotels = MOCK_PLANNING_PROVIDERS.search_hotels(requirements)
     attractions = MOCK_PLANNING_PROVIDERS.search_attractions(requirements)
     weather = MOCK_PLANNING_PROVIDERS.get_weather(requirements)
-    route = MOCK_PLANNING_PROVIDERS.get_route(
-        requirements.origin,
-        requirements.destination,
-    )
+    route = None  # P19 has no verified route coverage.
 
     plan = assemble_travel_plan_from_results(
         requirements=requirements,

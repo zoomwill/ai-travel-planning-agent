@@ -1052,3 +1052,102 @@ Record deviations from source pseudocode and important engineering decisions her
   1 skipped,759 deselected. Both isolated test runs cleaned up their containers/tmpfs; all five
   existing named volumes remain. Git diff whitespace check passed; HEAD remains b249bb5 and
   all 16 fix files are unstaged. No commit, push or Railway resource change.
+
+### 2026-09-15 — P19 product quality and review handoff (local only)
+
+- Continued the interrupted P19 working tree at HEAD `6bc79ba`; did not restart P00–P18,
+  undo edits, stage, commit, push, deploy, restart production, or delete data. Recovery found
+  the saved implementation/tests and three fixture JPGs, but the handoff documents had not
+  yet been saved. No residual test/server process required termination.
+- Source intent: five parallel search branches supply grounded planning facts. Actual fix:
+  the route branch still runs but reports non-critical unavailability when coverage cannot
+  be verified. The old seeded local-transit minutes were inappropriate for the trip's
+  origin/destination. Provider, worker, Planner inputs and assembly now exclude them, even
+  from legacy/injected result JSON. This is not a new route service or a geographic heuristic.
+- Source intent: bounded Planner–Reviewer refinement with honest outcomes. Actual response:
+  optional/default `TravelPlan.quality` and bounded warnings project existing review fields;
+  they do not change thresholds, maximum rounds or execute another graph. Finalize, persistent
+  HTTP/SSE results and state/history share this projection. Missing/inconsistent historical
+  review remains unknown; historical route text is warned about, not rewritten.
+- Frontend uses the durable summary, not a default accepted state or ephemeral review event.
+  Terminal/error/stop/restore quiesce progress; late events are ignored. Old account requests
+  cannot dispatch or update recent-trip metadata. Hotel inclusive-night semantics, exact
+  quote totals, outbound-only flight and excluded-fee warnings remain explicit. Progress and
+  final quality now both display 62.5 rather than one rounding it to 63.
+- Actual offline isolation: two locally signed test JWT identities, the same public UUID,
+  non-empty conversations/plans/history/preferences, spoofed user_id fields and cross-user
+  deletion. A changes its draft without changing B. PostgreSQL is separately opt-in and
+  localhost-only; initially not run because no project containers were running. The separately
+  authorized pre-publication follow-up below subsequently executed this PostgreSQL branch.
+- Browser isolation is explicitly a mock SDK fixture exercising AuthRoot/App, not Auth0 cloud
+  acceptance. Fixed the Vite React module/version mismatch and kept API routing under /api/v1/,
+  never /src/api/. A late response deliberately ignores AbortSignal and still cannot restore
+  A's UI after switching to B. Ordinary test server settings isolate real .env.local auth and
+  inherited VERCEL_ENV; production Auth0 validation itself is unchanged.
+- Chroma uses current official get_collection/get/query with embedding_function=None and a
+  stored vector. Count, sorted IDs, collection metadata, fixed content sample, query anchor,
+  endpoint/context and configured model/revision are compared. It does not create collections,
+  write records, index, use Redis as evidence, or load a SentenceTransformer. Build-corpus
+  is pure fixture/ID construction, not index_advanced_corpus. See the official
+  [Client](https://docs.trychroma.com/reference/python/client) and
+  [Collection](https://docs.trychroma.com/reference/python/collection) references.
+- API deviation: the installed synchronous Chroma HTTP client's calls cannot be forcibly
+  cancelled by abandoning an async waiter. The CLI uses a 60-second signal plus an outer
+  70-second subprocess supervisor that kills/reaps its own blocked worker. Offline tests
+  exercise the real process deadline. This is not an exact OS scheduling/time guarantee.
+  The implementation lives under app/deployment so the existing image COPY includes it;
+  scripts/check_chroma_persistence.py remains the local entry. No Dockerfile/startup change.
+- The helper cannot independently prove a restart/no-reindex window. Production before/after
+  collection checks and Chroma-only restart remain NOT VERIFIED. Runtime location, permissions,
+  commands, evidence requirements and stop conditions are in 26_PRODUCT_QUALITY_AND_HANDOFF.md.
+- Artifact review identified a PEM delimiter from Auth0/JOSE parsing, not an embedded key.
+  Actual rebuilt output was matched to a 97-module in-memory Vite build: no test/auth fixture
+  modules, full private key, or synthetic credential markers; only the five allowed public
+  VITE configuration names. Three backend redaction tests contain generated synthetic strings,
+  not usable provider secrets. Changing their literal spelling is not the security evidence;
+  provenance, dependency graph, rebuilt bytes and bounded scans are recorded separately.
+- Selected screenshots are the actual running local app, labeled Local fixture demonstration;
+  no real Auth0 identity/session was captured. Trace/HAR/login state remain ignored. No video
+  was recorded; DEMO_WALKTHROUGH.md provides a 1–2 minute script. Historical credential
+  revocation was initially unconfirmed; on 2026-09-15 the user explicitly confirmed all three
+  old Qwen/Duffel/LiteAPI credentials revoked and replacement credentials in Railway/local use.
+  Record only USER CONFIRMED and date, never values; this is not a provider-console audit.
+- Final local results and exact modified-file inventory are in P19_ACCEPTANCE_REPORT.md.
+  Historical P18 public results remain USER-REPORTED HISTORICAL, not fresh P19 CLOUD VERIFIED
+  evidence. Publication must upgrade strict frontend consumers before the new backend fields,
+  with old tabs refreshed or a short maintenance window. No P20 work is included.
+
+### P19 pre-publication local integration follow-up — 2026-09-15
+
+- Same HEAD 6bc79ba and existing P19 worktree retained. Explicitly local Docker Desktop
+  desktop-linux/Unix socket; started only postgres/redis/chroma with --wait. All existing
+  named volumes retained; saver/store idempotent setup passed. No production access or reset.
+- Source intent: local integration must not silently become real-provider/cloud acceptance.
+  tests/conftest.py now isolates integration settings to loopback and deterministic/demo modes,
+  disables tracing/model downloads, bypasses proxies for loopback, rejects non-loopback real
+  httpx transports, and leaves injected MockTransport usable. Real .env files are untouched.
+- First run: 3 failed, 9 passed, 1 skipped. Failures were legacy route-success/count assertions
+  in MCP/review/SSE integration. Updated to assert five tasks, four successful result branches,
+  noncritical route error and explicit warning; no quality threshold or graph change.
+- Added three real PostgreSQL application-reopen regressions: accepted quality, forced-finalized
+  quality at the existing max rounds, and pre-P19 checkpoint defaults without rewrite. Read-only
+  state/history disallow graph execution; strict MessagePack/no pickle retained. Existing
+  non-empty A/B same-public-UUID JWT test's PostgreSQL branch now participates in -m integration.
+- Actual final results: integration 15 passed/1 skipped/800 deselected; offline backend
+  795 passed/21 skipped; Ruff check and format (399 files), mypy (173 files) passed. The sole
+  integration skip is separately gated P13 observability. Frontend quality subset 5 passed;
+  full unaffected frontend/browser results remain the earlier P19 run, not a new execution.
+- Rebuilt the existing Dockerfile locally. COPY app contains app.deployment.chroma_evidence;
+  scripts wrapper is absent as expected, so cloud instructions use python -m. No dependency,
+  Dockerfile, startup or production change. Helper help runs network-none; before/after in a
+  UID 10001, 2 GiB/no-extra-swap container queried the existing local 77-record/384-dim collection.
+  Model-load guard plus absent sentence_transformers/torch imports confirmed no second model.
+  Ordinary image build still performs the existing pinned-model preparation; the builder itself
+  was not capped to 2 GiB. Helper container removed, hash-only baseline copied to .p19-private.
+- Compatibility: actual old schema from git show 6bc79ba accepts legacy plans but rejects new
+  quality/warnings in plan and final SSE (accepted and forced). Current schema accepts old
+  missing fields as unknown and new fields normally. Consumers first; controlled maintenance
+  and user refresh required, never promise forced automatic upgrade of all open browser tabs.
+- Production two-user and Chroma-only restart checks remain NOT VERIFIED. Only local image
+  packaging/runtime is verified, not current Railway module presence/SSH permissions. Exact
+  CLI, private file transfer, stop conditions and final Git inventory are in the P19 report.

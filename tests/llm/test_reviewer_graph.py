@@ -195,7 +195,8 @@ async def test_fake_qwen_runs_full_graph_without_entering_state_or_checkpoint() 
     snapshot = await graph.aget_state(thread_config)
 
     assert isinstance(result["travel_plan"], TravelPlan)
-    assert len(result["search_results"]) == 5
+    assert len(result["search_results"]) == 4
+    assert result["search_summary"]["route"]["status"] == "error"
     assert result["review_status"] == "accepted"
     assert len(provider.plan_inputs) == 1
     assert len(provider.review_inputs) == 1

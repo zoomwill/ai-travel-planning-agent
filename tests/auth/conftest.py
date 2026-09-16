@@ -55,7 +55,12 @@ def token(keys, auth_settings):
 
 
 @pytest.fixture
-def auth_client(monkeypatch, keys, auth_settings):
+def auth_persistence_factory():
+    return make_in_memory_persistence_factory()
+
+
+@pytest.fixture
+def auth_client(monkeypatch, keys, auth_settings, auth_persistence_factory):
     requests = []
 
     def serve(request):
@@ -92,7 +97,7 @@ def auth_client(monkeypatch, keys, auth_settings):
     app = create_app(
         settings=auth_settings,
         resource_factory=resources,
-        persistence_factory=make_in_memory_persistence_factory(),
+        persistence_factory=auth_persistence_factory,
     )
     with TestClient(app) as client:
         yield client, fakes, requests

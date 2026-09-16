@@ -14,9 +14,10 @@ export type UiPhase =
   | "planning"
   | "planned"
   | "error";
-export type ProgressStatus = "pending" | "running" | "completed" | "failed";
+export type ProgressStatus = "pending" | "running" | "completed" | "failed" | "stopped";
 
 export interface PlanningProgress {
+  terminal: boolean;
   stages: Record<
     "understanding" | "knowledge" | "search" | "drafting" | "reviewing" | "finalizing",
     ProgressStatus
@@ -64,6 +65,7 @@ const searchKinds: SearchKind[] = ["flights", "hotels", "attractions", "weather"
 
 export function freshProgress(): PlanningProgress {
   return {
+    terminal: false,
     stages: Object.fromEntries(stageNames.map((name) => [name, "pending"])) as PlanningProgress["stages"],
     searches: Object.fromEntries(searchKinds.map((name) => [name, "pending"])) as PlanningProgress["searches"],
     reviews: [],
@@ -132,6 +134,7 @@ function applyStreamEvent(progress: PlanningProgress, event: StreamBusinessEvent
     next = withStage(next, "reviewing", "completed");
     next = {
       ...next,
+      revisionRound: null,
       reviews: [
         ...next.reviews,
         {
@@ -147,33 +150,45 @@ function applyStreamEvent(progress: PlanningProgress, event: StreamBusinessEvent
     next = { ...next, revisionRound: event.data.review_round };
   } else if (event.event_type === "plan_completed") {
     next = withStage(next, "finalizing", "completed");
+    next = finishProgress(next);
   } else if (event.event_type === "error") {
     next = withStage(next, "finalizing", "failed");
+    next = finishProgress(next);
   }
   return next;
+}
+
+function finishProgress(progress: PlanningProgress): PlanningProgress {
+  const stop = (status: ProgressStatus): ProgressStatus => status === "running" ? "stopped" : status;
+  return {
+    ...progress, terminal: true, revisionRound: null,
+    stages: Object.fromEntries(Object.entries(progress.stages).map(([key, status]) => [key, stop(status)])) as PlanningProgress["stages"],
+    searches: Object.fromEntries(Object.entries(progress.searches).map(([key, status]) => [key, stop(status)])) as PlanningProgress["searches"],
+  };
 }
 
 /** Keep all browser UI transitions explicit and deterministic. */
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "LOAD_START":
-      return { ...state, phase: "booting", error: null, optimisticMessage: null };
+      return { ...initialAppState, progress: freshProgress() };
     case "LOAD_EMPTY":
       return { ...initialAppState, phase: "collecting", progress: freshProgress() };
     case "CONVERSATION_RECEIVED":
       return {
         ...state,
         conversation: action.conversation,
-        phase: phaseForConversation(action.conversation),
+        phase: state.progress.terminal ? state.phase : phaseForConversation(action.conversation),
         optimisticMessage: null,
         failedMessage: null,
         error: null,
       };
     case "PLAN_RESTORED":
-      return { ...state, phase: "planned", finalPlan: action.plan };
+      return { ...state, phase: "planned", finalPlan: action.plan, progress: finishProgress(freshProgress()) };
     case "SEND_START":
       return {
         ...state,
+        progress: state.finalPlan === null ? freshProgress() : state.progress,
         optimisticMessage: action.message,
         failedMessage: null,
         error: null,
@@ -195,6 +210,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         progress: freshProgress(),
       };
     case "STREAM_EVENT": {
+      if (state.progress.terminal) return state;
       const progress = applyStreamEvent(state.progress, action.event);
       if (action.event.event_type === "plan_completed") {
         return {
@@ -206,18 +222,20 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         };
       }
       if (action.event.event_type === "error") {
-        return { ...state, phase: "error", progress };
+        return { ...state, phase: "error", finalPlan: null, progress };
       }
       return { ...state, progress };
     }
     case "STOPPED":
+      if (state.progress.terminal) return state;
       return {
         ...state,
+        progress: finishProgress(state.progress),
         phase: state.conversation?.can_confirm === true ? "awaiting_confirmation" : "collecting",
         error: null,
       };
     case "SHOW_ERROR":
-      return { ...state, phase: "error", error: action.error };
+      return { ...state, phase: state.finalPlan !== null ? "planned" : "error", error: action.error, progress: finishProgress(state.progress) };
     case "CLEAR_ERROR":
       return {
         ...state,

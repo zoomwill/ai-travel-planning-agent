@@ -2,6 +2,7 @@
 
 from app.domain.models import TravelPlan
 from app.graphs.state import TravelPlanState
+from app.review.presentation import present_plan
 
 
 def finalize_plan_node(state: TravelPlanState) -> TravelPlanState:
@@ -31,5 +32,7 @@ def finalize_plan_node(state: TravelPlanState) -> TravelPlanState:
     else:
         outcome = "Quality review could not complete; this draft is retained as a best-effort plan."
     markdown = "\n\n".join([draft.markdown, f"## Quality review\n- {outcome}"])
-    final_plan = draft.model_copy(update={"markdown": markdown})
+    final_plan = present_plan(
+        draft.model_copy(update={"markdown": markdown}), state, historical=False
+    )
     return {"travel_plan": final_plan, "error": state.get("error")}

@@ -132,7 +132,7 @@ def test_stream_http_contract_progress_terminal_and_persistence(client: TestClie
     preferences = client.get("/api/v1/users/stream-user/preferences")
     assert state.status_code == 200
     assert state.json()["status"] == "complete"
-    assert state.json()["search_result_count"] == 5
+    assert state.json()["search_result_count"] == 4
     assert state.json()["travel_plan"] == final_plan
     assert history.status_code == 200 and history.json()["checkpoints"]
     assert [item["value"] for item in preferences.json()] == ["Quiet neighborhoods"]

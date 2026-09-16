@@ -173,7 +173,10 @@ def test_direct_stream_persists_revision_memory_and_survives_restart() -> None:
             history = client.get(f"/api/v1/agents/threads/{normal_thread}/history")
             preferences = client.get(f"/api/v1/users/{user_id}/preferences")
             assert state.json()["status"] == "complete"
-            assert state.json()["search_result_count"] == 5
+            assert state.json()["search_result_count"] == 4
+            assert state.json()["tool_error_count"] == 1
+            assert state.json()["search_summary"]["route"]["status"] == "error"
+            assert "route_unavailable" in state.json()["travel_plan"]["warnings"]
             assert state.json()["retrieval_query_variant_count"] > 0
             assert state.json()["travel_plan"]["requirements"]["destination"] == "Paris"
             assert history.json()["checkpoints"]

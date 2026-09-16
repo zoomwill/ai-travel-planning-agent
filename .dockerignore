@@ -1,4 +1,5 @@
 .git
+.p19-private
 .env
 .env.*
 .venv

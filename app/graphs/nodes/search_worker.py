@@ -24,6 +24,7 @@ from app.search.models import (
     create_request_fingerprint,
     dump_model_json,
 )
+from app.services.mock_providers.route_provider import RouteUnavailableError
 
 
 class _EmptySearchResultError(RuntimeError):
@@ -65,11 +66,16 @@ async def _call_backend(
     result = await backend.get_route(requirements.origin, requirements.destination)
     if not isinstance(result, RouteSummary):
         raise _InvalidSearchResultError
-    return [result]
+    # A typed object alone cannot prove route coverage. P19 has no verified
+    # route backend, including through MCP or a restored Demo fixture.
+    raise RouteUnavailableError
 
 
 def _error_type(exception: Exception) -> str:
     """Map internal exception classes to stable machine-readable categories."""
+
+    if isinstance(exception, RouteUnavailableError):
+        return "route_unavailable"
 
     if isinstance(exception, _EmptySearchResultError):
         return "empty_result"
@@ -117,7 +123,9 @@ async def search_worker_node(
             recoverable=(
                 exc.recoverable
                 if isinstance(exc, (DuffelError, LiteAPIError, MCPToolLayerError))
-                else not isinstance(exc, (ValueError, _InvalidSearchResultError))
+                else not isinstance(
+                    exc, (ValueError, _InvalidSearchResultError, RouteUnavailableError)
+                )
             ),
             source=source.value,
         )

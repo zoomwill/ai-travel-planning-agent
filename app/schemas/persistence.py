@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.models import TravelPlan, TripRequirements
+from app.domain.quality import PlanQuality, PlanWarning
 from app.rag.models import RetrievalDiagnostics
 from app.review.models import FinalizationReason, PlanReview, ReviewStatus
 from app.search.models import SearchErrorEnvelope, SearchSummary
@@ -77,6 +78,8 @@ class ThreadHistoryItem(BaseModel):
     """A safe summary of one checkpoint in newest-first order."""
 
     checkpoint_id: str
+    quality: PlanQuality | None = None
+    warnings: list[PlanWarning] = Field(default_factory=list, max_length=6)
     created_at: datetime
     next: list[str]
     tasks: list[str]

@@ -3,7 +3,6 @@
 from app.review.fingerprint import create_draft_fingerprint
 from app.review.models import RevisionPolicy
 from app.services.mock_providers import (
-    get_route,
     get_weather,
     search_attractions,
     search_flights,
@@ -23,7 +22,7 @@ def assemble(policy: RevisionPolicy):
         hotel_options=search_hotels(requirements),
         attractions=search_attractions(requirements),
         weather=get_weather(requirements),
-        route=get_route(requirements.origin, requirements.destination),
+        route=None,
         revision_policy=policy,
     )
 

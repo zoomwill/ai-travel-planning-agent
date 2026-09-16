@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowRight, Building2, CalendarDays, Clock, Plane, Star, Users, Wallet } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import type { PublicReview, TravelPlan } from "../../api/types";
+import type { TravelPlan } from "../../api/types";
 import { formatDate, formatDateTime, formatDuration, formatMoney } from "../../lib/formatters";
 
 type DataSource = TravelPlan["data_sources"][keyof TravelPlan["data_sources"]];
@@ -15,12 +15,32 @@ const sourceLabels: Record<DataSource, string> = {
   demo_fallback: "Demo Fallback",
 };
 
+const warningLabels: Record<TravelPlan["warnings"][number], string> = {
+  route_unavailable: "Route information unavailable. No verified intercity or local transit duration is provided.",
+  historical_route_unverified: "Historical route information is unverified. Do not rely on saved transit times; this record has not been rewritten.",
+  attractions_unavailable: "Attraction information unavailable. Verify visits independently.",
+  weather_unavailable: "Weather information unavailable. Check a current forecast before travel.",
+  return_flight_excluded: "Return flight excluded from the estimate.",
+  excluded_hotel_fees: "Excluded hotel fees may be payable separately.",
+};
+
+const issueLabels: Record<NonNullable<TravelPlan["quality"]>["issue_codes"][number], string> = {
+  missing_required_content: "Required information is missing.",
+  budget_overrun: "The estimate exceeds the budget.",
+  itinerary_too_dense: "The itinerary may be too dense.",
+  personalization_missing: "Preferences are not fully reflected.",
+  noncritical_data_unavailable: "Some non-critical travel data is unavailable.",
+  inconsistent_dates: "Dates need checking.",
+  invalid_cost_breakdown: "The cost breakdown needs checking.",
+  general_quality_issue: "The reviewer identified a remaining quality issue.",
+};
+
 function SourceBadge({ source }: { source: DataSource }) {
   return <span className={`source-badge source-${source}`}>{sourceLabels[source]}</span>;
 }
 
 /** Render the validated structured plan without injecting HTML or recalculating prices. */
-export function ItineraryView({ plan, review }: { plan: TravelPlan; review?: PublicReview }) {
+export function ItineraryView({ plan }: { plan: TravelPlan }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), [plan]);
   const sourceRows = Object.entries(plan.data_sources) as [string, DataSource][];
@@ -29,12 +49,23 @@ export function ItineraryView({ plan, review }: { plan: TravelPlan; review?: Pub
   const hasDuffelTest = sourceRows.some(([, source]) => source === "duffel_test");
   const hasFallback = sourceRows.some(([, source]) => source === "demo_fallback");
   const flightSegments = plan.flight.segments.length > 0 ? plan.flight.segments : null;
+  const quality = plan.quality;
+  const outcome = quality?.review_status === "accepted" ? "Reviewer accepted — verify travel details"
+    : quality?.review_status === "forced_finalized" ? "Draft generated — review needed"
+    : "Saved draft — historical review unavailable";
+  const warnings = [...plan.warnings];
+  if (quality === null && !warnings.includes("historical_route_unverified") && !warnings.includes("route_unavailable")) warnings.push("historical_route_unverified");
+  // The current backend contract treats both trip dates as inclusive hotel nights.
+  const checkout = new Date(`${plan.requirements.end_date}T00:00:00Z`);
+  checkout.setUTCDate(checkout.getUTCDate() + 1);
+  const checkoutDate = checkout.toISOString().slice(0, 10);
+  const nights = plan.hotel.stay_nights ?? Math.round((checkout.getTime() - Date.parse(`${plan.requirements.start_date}T00:00:00Z`)) / 86_400_000);
 
   return (
     <section className="results-view" aria-labelledby="trip-results-heading">
       <div className="results-hero">
         <div>
-          <p className="eyebrow text-indigo-200">Your trip is ready</p>
+          <p className="eyebrow text-indigo-200">{outcome}</p>
           <h1 id="trip-results-heading" ref={headingRef} tabIndex={-1} className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
             {plan.requirements.origin} <ArrowRight className="inline" aria-hidden="true" /> {plan.requirements.destination}
           </h1>
@@ -48,6 +79,13 @@ export function ItineraryView({ plan, review }: { plan: TravelPlan; review?: Pub
       </div>
 
       {plan.budget_warning !== null && <div className="budget-warning" role="status"><AlertTriangle aria-hidden="true" size={20} /><div><p className="font-semibold">Budget note</p><p>{plan.budget_warning}</p></div></div>}
+
+      <section className="review-summary" aria-label="Final review summary"><div><p className="eyebrow">Workflow ended · not a factual guarantee</p><h2 className="mt-1 text-xl font-bold text-slate-950">Final review summary</h2><p>{outcome}</p>
+        {quality?.review_status === "forced_finalized" && <p>Maximum review rounds reached. Automatic improvement has stopped; check the unresolved issues before using this draft.</p>}
+        {quality !== null && quality.review_rounds > 0 && <p>Review round {quality.review_rounds}</p>}
+        {quality !== null && quality.issue_codes.length > 0 && <ul aria-label="Review issues">{quality.issue_codes.map((issue) => <li key={issue}>{issueLabels[issue]}</li>)}</ul>}
+        {warnings.length > 0 && <ul aria-label="Travel limitations">{warnings.map((warning) => <li key={warning}>{warningLabels[warning]}</li>)}</ul>}
+      </div><div className="review-score"><span>{quality?.final_score ?? "Unknown"}</span><small>{quality?.final_score == null ? "score unavailable" : "/ 100"}</small></div></section>
 
       <section className="source-summary" aria-labelledby="data-sources-heading">
         <div><p className="eyebrow">Data Sources</p><h2 id="data-sources-heading" className="mt-1 text-lg font-bold text-slate-950">Mixed-source disclosure</h2></div>
@@ -71,6 +109,7 @@ export function ItineraryView({ plan, review }: { plan: TravelPlan; review?: Pub
           <div className="flex-1">
             <p className="eyebrow">Hotel <SourceBadge source={plan.hotel.data_source} /></p>
             <h2 className="mt-1 text-lg font-bold text-slate-950">{plan.hotel.name}</h2>
+            <p className="mt-2 text-sm text-slate-500">Check-in {formatDate(plan.requirements.start_date)} · Check-out {formatDate(checkoutDate)} · {nights} nights (trip end date included)</p>
             <p className="mt-2 flex items-center gap-1 text-sm text-amber-600"><Star aria-hidden="true" size={15} fill={plan.hotel.rating === null ? "none" : "currentColor"} /> {plan.hotel.rating === null ? "Rating unavailable" : `${plan.hotel.rating.toFixed(1)} stars`}{plan.hotel.distance_to_center_km === null ? "" : ` · ${plan.hotel.distance_to_center_km} km from center`}</p>
             {plan.hotel.review_score !== null && <p className="mt-1 text-sm text-slate-500">Guest review score: {plan.hotel.review_score.toFixed(1)} / 10</p>}
             <p className="mt-4 text-lg font-bold text-slate-950">{formatMoney(plan.hotel.price_per_night, plan.hotel.currency)} <span className="text-sm font-normal text-slate-400">/ night</span></p>
@@ -96,8 +135,6 @@ export function ItineraryView({ plan, review }: { plan: TravelPlan; review?: Pub
           ))}
         </div>
       </div>
-
-      {review !== undefined && <section className="review-summary"><div><p className="eyebrow">Quality review</p><h2 className="mt-1 text-xl font-bold text-slate-950">Final review summary</h2><p className="mt-2 text-sm leading-6 text-slate-600">{review.critique}</p></div><div className="review-score"><span>{Math.round(review.scores.overall_score)}</span><small>/ 100</small></div></section>}
 
       <p className="demo-disclosure">
         Displayed results are not live booking inventory, and this app has no booking capability.{" "}

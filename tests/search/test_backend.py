@@ -1,7 +1,10 @@
 """Tests for the asynchronous adapter over existing P03 mock providers."""
 
-from app.domain.models import Attraction, FlightOption, HotelOption, RouteSummary, WeatherSummary
+import pytest
+
+from app.domain.models import Attraction, FlightOption, HotelOption, WeatherSummary
 from app.search.backend import DeterministicMockSearchBackend
+from app.services.mock_providers.route_provider import RouteUnavailableError
 from tests.search.test_models import make_requirements
 
 
@@ -15,13 +18,13 @@ async def test_default_backend_maps_all_five_existing_providers() -> None:
     hotels = await backend.search_hotels(requirements)
     attractions = await backend.search_attractions(requirements)
     weather = await backend.get_weather(requirements)
-    route = await backend.get_route(requirements.origin, requirements.destination)
+    with pytest.raises(RouteUnavailableError):
+        await backend.get_route(requirements.origin, requirements.destination)
 
     assert all(isinstance(item, FlightOption) for item in flights)
     assert all(isinstance(item, HotelOption) for item in hotels)
     assert all(isinstance(item, Attraction) for item in attractions)
     assert all(isinstance(item, WeatherSummary) for item in weather)
-    assert isinstance(route, RouteSummary)
 
 
 async def test_default_backend_remains_deterministic() -> None:
@@ -31,6 +34,6 @@ async def test_default_backend_remains_deterministic() -> None:
     backend = DeterministicMockSearchBackend()
 
     assert await backend.search_flights(requirements) == await backend.search_flights(requirements)
-    assert await backend.get_route(
-        requirements.origin, requirements.destination
-    ) == await backend.get_route(requirements.origin, requirements.destination)
+    for _ in range(2):
+        with pytest.raises(RouteUnavailableError):
+            await backend.get_route(requirements.origin, requirements.destination)

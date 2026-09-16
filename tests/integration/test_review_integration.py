@@ -126,7 +126,10 @@ async def test_postgres_revision_reset_and_memory_survive_reopen() -> None:
                 )
                 assert paris["review_round"] == 1
                 assert len(paris["review_history"]) == 1
-                assert len(paris["search_results"]) == 5
+                assert len(paris["search_tasks"]) == 5
+                assert len(paris["search_results"]) == 4
+                assert paris["search_summary"]["route"]["status"] == "error"
+                assert "route_unavailable" in paris["travel_plan"].warnings
                 assert_current_destination(paris["search_results"], "Paris")
 
                 remembered = await reset_graph.ainvoke(

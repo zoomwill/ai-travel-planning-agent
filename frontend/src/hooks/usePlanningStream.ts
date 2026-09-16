@@ -22,10 +22,11 @@ export function usePlanningStream(
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const activePromiseRef = useRef<Promise<void> | null>(null);
 
-  const resync = useCallback(async () => {
+  const resync = useCallback(async (controller: AbortController) => {
     if (!mounted.current) return;
     try {
       const conversation = await getConversation(threadId, userId, undefined, getAccessToken);
+      if (!mounted.current || controllerRef.current !== controller) return;
       dispatch({ type: "CONVERSATION_RECEIVED", conversation });
     } catch {
       // The original bounded error remains the useful user-facing result.
@@ -50,6 +51,7 @@ export function usePlanningStream(
             },
             controller.signal,
             (event) => {
+              if (!mounted.current || controllerRef.current !== controller || controller.signal.aborted) return;
               dispatch({ type: "STREAM_EVENT", event });
               if (event.event_type === "error") {
                 terminalError = new AppError(event.data.safe_message, {
@@ -59,15 +61,19 @@ export function usePlanningStream(
             },
             getAccessToken,
           );
-          await resync();
+          await resync(controller);
+          if (!mounted.current || controllerRef.current !== controller) return;
           if (terminalError !== null) dispatch({ type: "SHOW_ERROR", error: terminalError });
         } catch (error) {
+          if (!mounted.current || controllerRef.current !== controller) return;
           if (isAbortError(error) || controller.signal.aborted) {
-            await resync();
+            await resync(controller);
+            if (!mounted.current || controllerRef.current !== controller) return;
             dispatch({ type: "STOPPED" });
           } else {
             const appError = toAppError(error);
-            if (appError.status === 409) await resync();
+            if (appError.status === 409) await resync(controller);
+            if (!mounted.current || controllerRef.current !== controller) return;
             dispatch({ type: "SHOW_ERROR", error: appError });
           }
         } finally {

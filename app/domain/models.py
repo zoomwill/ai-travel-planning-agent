@@ -9,6 +9,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.countries import GuestNationality
+from app.domain.quality import PlanQuality, PlanWarning
 
 
 class Currency(StrEnum):
@@ -449,6 +450,14 @@ class TravelPlan(DomainModel):
     """A validated deterministic travel plan returned by the planning service."""
 
     requirements: TripRequirements = Field(description="Requirements this plan must satisfy.")
+    quality: PlanQuality | None = Field(
+        default=None, description="Stored review outcome, not factual verification."
+    )
+    warnings: list[PlanWarning] = Field(
+        default_factory=list,
+        max_length=6,
+        description="Bounded application-owned travel limitations.",
+    )
     flight: FlightOption = Field(description="Selected outbound one-way flight; no return quote.")
     hotel: HotelOption = Field(description="Selected hotel option.")
     daily_itinerary: list[DailyItinerary] = Field(
