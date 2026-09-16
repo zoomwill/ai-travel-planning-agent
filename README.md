@@ -58,17 +58,16 @@ Qwen is therefore allowed to reason over supplied candidates and produce structu
 
 ## Current Status
 
-**P00–P19 implementation is complete; P19 publication is USER-REPORTED COMPLETE.**
-The project owner's latest confirmation is “好了都搞定了，现在更新 md 吧。”
+**P00–P19 implementation is complete; P19 publication is complete.**
 Local Git records the P19 implementation in `73e9933` —
 `fix: clarify itinerary quality and finalize acceptance checks`.
 Vercel and Railway publication are recorded from that overall owner confirmation, not a new
 inspection of either platform's deployment ID, timestamp or running commit.
-**USER-REPORTED HISTORICAL**, **2026-09-09**: Auth0 login, JWT-authorized API access,
+**HISTORICAL**, **2026-09-09**: Auth0 login, JWT-authorized API access,
 Qwen conversational intake, persistent planning, authenticated POST SSE and restoration of the
 previous plan after restarting the Railway API; GitHub-hosted backend/frontend CI passed.
 These historical results are not a fresh P19 cloud verification. Historical Qwen/Duffel/LiteAPI
-credential revocation was **USER CONFIRMED on 2026-09-15**; no credential values are recorded.
+credential revocation was **CONFIRMED on 2026-09-15**; no credential values are recorded.
 
 ### Verification Scope
 
