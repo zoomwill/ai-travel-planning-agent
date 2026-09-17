@@ -26,7 +26,7 @@ For every task:
 
 ## 3. Do not fabricate implementation status
 
-Do not claim a feature works unless you executed an appropriate test or command.
+Do not claim a feature works unless executed an appropriate test or command.
 
 Do not invent:
 
