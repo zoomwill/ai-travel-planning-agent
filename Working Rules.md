@@ -23,8 +23,6 @@ For every task:
 5. Explain failures in beginner language.
 6. Fix failures before claiming success.
 7. Summarize exactly what changed.
-8. Provide exact commands the user should run.
-9. Stop after the requested phase.
 
 ## 3. Do not fabricate implementation status
 
