@@ -1,6 +1,6 @@
-# Codex Working Rules
+# Working Rules
 
-You are working with a user who is a complete programming beginner. Follow these rules for every task.
+Follow these rules for every task.
 
 ## 1. Read before changing
 
