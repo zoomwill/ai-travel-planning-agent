@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Annotated, Generic, Literal, TypeAlias, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.intake.models import PartialTripRequirements, TripRequirementPatch
 from app.review.models import ReviewIssueCode
@@ -18,7 +18,15 @@ ActivityText: TypeAlias = Annotated[str, Field(min_length=1, max_length=300)]
 SearchStatusText: TypeAlias = Annotated[str, Field(min_length=1, max_length=120)]
 AttractionCandidateId: TypeAlias = Annotated[
     str,
-    Field(pattern=r"^attraction_[0-9a-f]{24}$"),
+    StringConstraints(strict=True, strip_whitespace=False, pattern=r"^attraction_[0-9a-f]{24}$"),
+]
+FlightCandidateId: TypeAlias = Annotated[
+    str,
+    StringConstraints(strict=True, strip_whitespace=False, pattern=r"^flight_[0-9a-f]{24}$"),
+]
+HotelCandidateId: TypeAlias = Annotated[
+    str,
+    StringConstraints(strict=True, strip_whitespace=False, pattern=r"^hotel_[0-9a-f]{24}$"),
 ]
 SuggestedChangeText: TypeAlias = Annotated[str, Field(min_length=1, max_length=500)]
 
@@ -64,7 +72,7 @@ class TripPromptSnapshot(LLMModel):
 class FlightCandidate(LLMModel):
     """Bounded authoritative flight candidate supplied to the model."""
 
-    candidate_id: str = Field(pattern=r"^flight_[0-9a-f]{24}$")
+    candidate_id: FlightCandidateId
     flight_number: str = Field(min_length=1, max_length=80)
     airline: str = Field(min_length=1, max_length=160)
     departure_time: str = Field(min_length=1, max_length=64)
@@ -77,7 +85,7 @@ class FlightCandidate(LLMModel):
 class HotelCandidate(LLMModel):
     """Bounded authoritative hotel candidate supplied to the model."""
 
-    candidate_id: str = Field(pattern=r"^hotel_[0-9a-f]{24}$")
+    candidate_id: HotelCandidateId
     name: str = Field(min_length=1, max_length=200)
     rating: float | None = Field(default=None, ge=0, le=5)
     price_per_night: str = Field(min_length=1, max_length=40)
@@ -92,7 +100,7 @@ class HotelCandidate(LLMModel):
 class AttractionCandidate(LLMModel):
     """Bounded authoritative attraction candidate supplied to the model."""
 
-    candidate_id: str = Field(pattern=r"^attraction_[0-9a-f]{24}$")
+    candidate_id: AttractionCandidateId
     name: str = Field(min_length=1, max_length=200)
     category: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=1, max_length=600)
@@ -120,6 +128,7 @@ class PlannerPromptInput(LLMModel):
     retrieved_context: list[ContextText] = Field(default_factory=list, max_length=4)
     unavailable_searches: list[UnavailableSearchText] = Field(default_factory=list, max_length=5)
     revision: RevisionPromptSnapshot
+    grounding_repair: bool = False
 
 
 class QwenDayAttractionSelection(LLMModel):
@@ -132,8 +141,8 @@ class QwenDayAttractionSelection(LLMModel):
 class QwenPlanDecision(LLMModel):
     """Qwen choices only; prices and provider facts are intentionally absent."""
 
-    selected_flight_id: str = Field(pattern=r"^flight_[0-9a-f]{24}$")
-    selected_hotel_id: str = Field(pattern=r"^hotel_[0-9a-f]{24}$")
+    selected_flight_id: FlightCandidateId
+    selected_hotel_id: HotelCandidateId
     daily_attraction_ids: list[QwenDayAttractionSelection] = Field(
         min_length=1,
         max_length=366,

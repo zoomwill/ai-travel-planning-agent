@@ -223,7 +223,7 @@ async def test_fake_qwen_graph_rejects_hallucinated_id_without_fallback() -> Non
     prompt = baseline.plan_inputs[0]
     valid = await baseline.plan(prompt)
     invalid = valid.value.model_copy(update={"selected_hotel_id": f"hotel_{'f' * 24}"})
-    provider = FakeStructuredLLMProvider(plan_decisions=[invalid])
+    provider = FakeStructuredLLMProvider(plan_decisions=[invalid, invalid])
     graph = build_travel_planning_graph(
         lambda query: [],
         reasoning_mode="qwen",
@@ -238,6 +238,8 @@ async def test_fake_qwen_graph_rejects_hallucinated_id_without_fallback() -> Non
 
     assert result["travel_plan"] is None
     assert result["error"] == "llm_grounding_violation"
+    assert len(provider.plan_inputs) == 2
+    assert provider.review_inputs == []
 
 
 @pytest.mark.asyncio

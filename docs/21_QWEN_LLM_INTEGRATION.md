@@ -92,8 +92,24 @@ lower-cost revision policy. It never guesses a "nearby" ID.
 
 After validation, the existing planning service receives the exact original domain objects. It
 calculates itinerary dates and total cost deterministically from provider prices. Thus Qwen can
-choose and arrange known candidates, but cannot invent or alter travel facts. A grounding failure
-ends safely unless the operator explicitly set `QWEN_ALLOW_DETERMINISTIC_FALLBACK=true`.
+choose and arrange known candidates, but cannot invent or alter travel facts.
+
+Post-P19 maintenance: prompt and validation share the same invocation-local registry, bounded
+to the first 20 flights, 20 hotels and 40 attractions, then deduplicated by stable ID. Candidate
+IDs are exact opaque strings: no trimming or case normalization. An otherwise schema-valid
+decision with an unknown flight, hotel or daily attraction ID gets **one** semantic repair call.
+The prompt repeats the same safe candidate context/allowlist with a fixed repair instruction;
+it does not include the rejected completion. The second decision must pass every grounding rule.
+Duplicate attractions, day-sequence errors and revision-policy violations alone do not get repair.
+An unsuccessful repair ends with `llm_grounding_violation`, even when deterministic fallback was
+configured; intake remains retryable and no invented plan is saved. This does not re-execute
+the graph, five searches or Reviewer. Each genuine Reviewer-driven Planner revision gets its own
+one-repair budget, without changing the maximum review rounds.
+
+JSON Object mode is retained: the existing adapter/model configuration does not establish
+support for runtime schema enums. [Current Alibaba documentation](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output)
+limits JSON Schema mode to selected model families; an offline mock cannot prove cloud support.
+Application-side strict JSON, schema and grounding validation remains authoritative.
 
 ## Reviewer and bounded reflection
 
@@ -128,6 +144,18 @@ schema failure, and grounding failure are not retried indefinitely. Retry waits 
 bounded. `QWEN_MAX_COMPLETION_TOKENS` defaults to 2048 and is limited to 256–4096. It is passed as
 Model Studio's current `max_completion_tokens` parameter, so one attempt cannot request the
 model's full maximum output length.
+
+Semantic repair is separate from `QWEN_MAX_RETRIES`; no new retry setting is added. Per Planner
+invocation there are at most two semantic calls and at most `2 * (QWEN_MAX_RETRIES + 1)` HTTP
+attempts (four at the default, six at the configured maximum). These are ceilings, not claimed
+usage; both transport attempts and timeouts can incur provider cost. Cancellation propagates
+through a pending repair and SSE disconnect cleanup cancels/awaits the producer. The existing
+client lifespan and request timeout are unchanged.
+
+`travel_planner_planner_grounding_total{outcome="valid|repaired|failed"}` records bounded semantic
+outcomes, once per completed grounding invocation. It has no ID, location, user, token or prompt
+labels. Parsing/transport failure before grounding remains in existing LLM request metrics;
+cancellation is not mislabeled as a grounding failure.
 
 Deterministic fallback defaults to false. When explicitly true, every Planner and Reviewer use of
 the deterministic path is recorded in both safe logs and `status="fallback"` metrics, including a

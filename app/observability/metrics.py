@@ -120,6 +120,7 @@ class MetricsRuntime:
     llm_requests: Counter
     llm_duration: Histogram
     llm_tokens: Counter
+    planner_grounding: Counter
     intake_turns: Counter
     intake_turn_duration: Histogram
     intake_confirmations: Counter
@@ -291,6 +292,12 @@ class MetricsRuntime:
                 "travel_planner_llm_tokens",
                 "Provider-reported LLM tokens; missing usage is never estimated.",
                 ("direction",),
+                registry=owned_registry,
+            ),
+            planner_grounding=Counter(
+                "travel_planner_planner_grounding",
+                "Planner grounding outcomes per invocation; no candidate or identity labels.",
+                ("outcome",),
                 registry=owned_registry,
             ),
             intake_turns=Counter(

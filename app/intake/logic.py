@@ -9,6 +9,7 @@ from typing import cast
 
 from pydantic import ValidationError
 
+from app.domain.countries import normalize_explicit_country
 from app.domain.models import TripRequirements
 from app.intake.models import (
     PartialTripRequirements,
@@ -38,32 +39,64 @@ _QUESTION_TEMPLATES: dict[RequirementField, str] = {
 }
 
 
-def require_explicit_nationality(message: str, patch: TripRequirementPatch) -> TripRequirementPatch:
-    """Accept a nationality code only from an unambiguous current-message answer.
+NATIONALITY_CLARIFICATION = (
+    "Please enter your nationality or country for hotel pricing, for example "
+    "United States (US), China (CN), or Japan (JP)."
+)
 
-    A bare code or a dedicated nationality field is accepted. Other natural-language messages
-    require a separate clarification; a model cannot borrow the origin, locale or old context.
+
+def explicit_nationality_value(
+    message: str, *, allow_bare_country: bool, allow_correction: bool = False
+) -> str | None:
+    """Recognize a dedicated field or a country-only answer to the current question.
+
+    Never search inside arbitrary prose: residence, destination, language and identity do not
+    establish nationality. A bare correction is allowed only in a nationality/confirmation turn.
     """
 
-    code = patch.guest_nationality
-    if code is None:
-        return patch
-    answer = message.strip().rstrip(".!。！")
-    explicit = (
-        answer.upper() == code
-        or re.fullmatch(
-            rf"(?:my\s+|我的)?(?:guest[_ -]?nationality|nationality|国籍)"
-            rf"\s*(?:is\s+|[:：=为是]\s*)?[\"']?{re.escape(code)}[\"']?",
-            answer,
-            flags=re.IGNORECASE,
-        )
-        is not None
+    answer = message.strip()
+    field = re.fullmatch(
+        r"(?:my\s+|我的)?(?:guest[_ -]?nationality|nationality|"
+        r"hotel pricing (?:nationality|country)|国籍)"
+        r"\s*(?:is\s+|[:：=为是]\s*)(.+)",
+        answer,
+        flags=re.IGNORECASE,
     )
-    if explicit:
-        return patch
-    return TripRequirementPatch.model_validate(
-        patch.model_dump(exclude_unset=True, exclude={"guest_nationality"})
-    )
+    if field:
+        value = field[1].strip().strip("\"'")
+        return value if normalize_explicit_country(value) else value.rstrip(".!。！")
+    if allow_correction:
+        correction = re.fullmatch(r"actually\s+(.+)", answer, flags=re.IGNORECASE)
+        if correction:
+            answer = correction[1]
+            allow_bare_country = True
+    if allow_bare_country:
+        if normalize_explicit_country(answer) is not None:
+            return answer
+        without_punctuation = answer.rstrip(".!。！")
+        if normalize_explicit_country(without_punctuation) is not None:
+            return without_punctuation
+        # An unknown single-word answer (including Congo/United) needs clarification,
+        # not an LLM guess or a failed strict ISO2 extraction.
+        if answer.isascii() and answer.isalpha():
+            return answer
+    return None
+
+
+def require_explicit_nationality(
+    message: str, patch: TripRequirementPatch, *, allow_bare_country: bool = True
+) -> TripRequirementPatch:
+    """Replace a model nationality guess with an explicit deterministic country only."""
+
+    value = explicit_nationality_value(message, allow_bare_country=allow_bare_country)
+    code = normalize_explicit_country(value) if value is not None else None
+    values = patch.model_dump(exclude_unset=True, exclude={"guest_nationality"})
+    if code is not None:
+        values["guest_nationality"] = code
+        values["clear_fields"] = [
+            field for field in patch.clear_fields if field != RequirementField.GUEST_NATIONALITY
+        ]
+    return TripRequirementPatch.model_validate(values)
 
 
 def merge_requirement_patch(

@@ -116,6 +116,8 @@ async def qwen_planner_node(
     prepared = _prepare_planning_inputs(state)
     if isinstance(prepared, dict):
         return prepared
+    grounding_rejected = False
+    repair_attempted = False
     if provider is None:
         error = LLMError("llm_not_configured")
     else:
@@ -131,12 +133,30 @@ async def qwen_planner_node(
                 revision_policy=prepared.revision_policy,
             )
             result = await provider.plan(grounded.prompt)
-            selection = validate_grounded_decision(
-                result.value,
-                grounded,
-                requirements=prepared.requirements,
-                revision_policy=prepared.revision_policy,
-            )
+            try:
+                selection = validate_grounded_decision(
+                    result.value,
+                    grounded,
+                    requirements=prepared.requirements,
+                    revision_policy=prepared.revision_policy,
+                )
+            except GroundingViolation as exc:
+                grounding_rejected = True
+                if exc.unknown_candidate_type is None:
+                    raise
+                repair_attempted = True
+                # Local budget: one more Planner call, never another graph/search/reviewer.
+                # Reuse this exact registry and bounded prompt, never the rejected completion.
+                result = await provider.plan(
+                    grounded.prompt.model_copy(update={"grounding_repair": True})
+                )
+                selection = validate_grounded_decision(
+                    result.value,
+                    grounded,
+                    requirements=prepared.requirements,
+                    revision_policy=prepared.revision_policy,
+                )
+            _record_grounding(metrics, "repaired" if repair_attempted else "valid")
             return _assemble_plan(state, prepared, grounded_selection=selection)
         except LLMError as exc:
             error = exc
@@ -152,7 +172,12 @@ async def qwen_planner_node(
         except Exception:
             error = LLMError("llm_provider_error")
 
-    if allow_deterministic_fallback:
+    if grounding_rejected:
+        _record_grounding(metrics, "failed")
+        # Once grounding failed, a failed repair (including transport/schema failure) must
+        # remain a safe planning failure even if ordinary provider fallback was enabled.
+        error = LLMError("llm_grounding_violation")
+    if allow_deterministic_fallback and not grounding_rejected:
         record_deterministic_fallback(metrics, "planner", error.code)
         return _assemble_plan(state, prepared)
     return {
@@ -161,6 +186,22 @@ async def qwen_planner_node(
         "review_status": "failed",
         "error": error.code,
     }
+
+
+def _record_grounding(
+    metrics: MetricsRuntime | None, outcome: Literal["valid", "repaired", "failed"]
+) -> None:
+    """Record only a bounded semantic outcome, never raw decisions or candidate IDs."""
+
+    if metrics is not None:
+        metrics.planner_grounding.labels(outcome=outcome).inc()
+    log_event(
+        "planner_grounding_outcome",
+        "A Planner grounding check completed.",
+        component="llm",
+        role="planner",
+        outcome=outcome,
+    )
 
 
 def _prepare_planning_inputs(

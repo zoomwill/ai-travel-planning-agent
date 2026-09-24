@@ -43,8 +43,14 @@ _SECRET_PATTERNS = (
 class GroundingViolation(LLMError):
     """Carry one safe internal reason while preserving the public error code."""
 
-    def __init__(self, reason: GroundingViolationReason) -> None:
+    def __init__(
+        self,
+        reason: GroundingViolationReason,
+        *,
+        unknown_candidate_type: CandidateKind | None = None,
+    ) -> None:
         self.reason = reason
+        self.unknown_candidate_type = unknown_candidate_type
         super().__init__("llm_grounding_violation")
 
 
@@ -158,8 +164,10 @@ def validate_grounded_decision(
 
     flight = grounded.flights.get(decision.selected_flight_id)
     hotel = grounded.hotels.get(decision.selected_hotel_id)
-    if flight is None or hotel is None:
-        raise GroundingViolation("unknown_primary_candidate")
+    if flight is None:
+        raise GroundingViolation("unknown_primary_candidate", unknown_candidate_type="flight")
+    if hotel is None:
+        raise GroundingViolation("unknown_primary_candidate", unknown_candidate_type="hotel")
 
     day_count = (requirements.end_date - requirements.start_date).days + 1
     days = decision.daily_attraction_ids
@@ -177,7 +185,11 @@ def validate_grounded_decision(
         resolved: list[Attraction] = []
         for candidate_id in day.attraction_ids:
             attraction = grounded.attractions.get(candidate_id)
-            if attraction is None or candidate_id in seen:
+            if attraction is None:
+                raise GroundingViolation(
+                    "duplicate_or_unknown_attraction", unknown_candidate_type="attraction"
+                )
+            if candidate_id in seen:
                 raise GroundingViolation("duplicate_or_unknown_attraction")
             seen.add(candidate_id)
             resolved.append(attraction)

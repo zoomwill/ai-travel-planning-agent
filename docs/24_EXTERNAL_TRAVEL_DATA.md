@@ -39,10 +39,21 @@ The domain accepts explicit assigned ISO alpha-2 codes, normalizing lowercase. I
 nationality from origin, browser, IP, user ID or language. P15 extracts an incremental patch;
 application-controlled missing-field policy asks for nationality before explicit confirmation.
 This field is trip-specific, not automatically written to long-term preference memory or logs.
-An application-side guard accepts a new/corrected code only in an unambiguous current-message
-answer: for example `CN`, `nationality: CN` or `国籍：CN`. An extractor that borrows US from an
-origin/locale is ignored even if its output passes schema validation. Ambiguous or multi-field
-natural language requires a separate explicit code reply; country-name inference is not added.
+Post-P19 maintenance: application code normalizes an explicit country answer using bundled
+`pycountry` ISO data (alpha-2, alpha-3, canonical/official/common names) plus a small reviewed alias
+table. For example `United States`, `USA`, `U.S.A.` become `US`; `China`, `CHN`, `PRC` become `CN`;
+`Japan`/`JPN` become `JP`. Surrounding whitespace/case are normalized; there is no fuzzy matching,
+numeric/historic-code lookup or guessed country. `United`, `Republic`, `Congo` require clarification.
+
+A standalone country answer is accepted only when the current question asks solely for nationality.
+Dedicated `nationality: China` / `国籍：CN` fields work independently; `Actually China` can correct
+nationality in that question or when reviewing a complete draft containing nationality. These
+dedicated answers bypass LLM extraction entirely. If destination and nationality are both asked,
+bare `Japan` is not automatically nationality. Other/multi-field prose still goes through intake,
+but model nationality guesses from origin, residence, locale, IP, language, Auth0 profile,
+preferences or history are discarded. Invalid explicit answers get bounded examples and cannot
+confirm an unresolved correction. The resulting domain/API/provider field remains strict ISO2;
+no frontend protocol change or automatic long-term preference write is introduced.
 
 P03 defines end_date as the final trip day. P15 computes end = start + duration − 1. P04 emits
 one DailyItinerary per inclusive day and budgets one hotel night per day. P07 preserves the same

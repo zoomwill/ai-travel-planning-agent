@@ -1,5 +1,6 @@
 """Planner candidate identity, prompt safety, and deterministic assembly tests."""
 
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -12,6 +13,7 @@ from app.llm.grounding import (
     GroundedPlannerInput,
     GroundingViolation,
     build_grounded_planner_input,
+    stable_candidate_id,
     validate_grounded_decision,
 )
 from app.llm.models import QwenDayAttractionSelection, QwenPlanDecision
@@ -250,3 +252,69 @@ def test_revision_policy_cannot_be_bypassed_by_model_choice() -> None:
             requirements=requirements(),
             revision_policy=policy,
         )
+
+
+@pytest.mark.parametrize("kind", ["flight", "hotel", "attraction"])
+@pytest.mark.parametrize("change", ["leading", "trailing", "case", "name", "index"])
+def test_opaque_ids_are_never_normalized(kind: str, change: str) -> None:
+    input_data = grounded()
+    raw = valid_decision(input_data).model_dump()
+    known = next(iter(getattr(input_data, kind + "s")))
+    invalid = {
+        "leading": " " + known,
+        "trailing": known + " ",
+        "case": known.upper(),
+        "name": "Tokyo museum",
+        "index": "0",
+    }[change]
+    if kind == "attraction":
+        raw["daily_attraction_ids"][0]["attraction_ids"] = [invalid]
+    else:
+        raw[f"selected_{kind}_id"] = invalid
+    with pytest.raises(ValidationError):
+        QwenPlanDecision.model_validate_json(json.dumps(raw))
+
+
+def test_prompt_validator_exact_registry_equality_after_truncation_and_deduplication() -> None:
+    baseline = grounded()
+    flight = next(iter(baseline.flights.values()))
+    hotel = next(iter(baseline.hotels.values()))
+    attraction = next(iter(baseline.attractions.values()))
+    flights = [
+        flight,
+        flight,
+        *[flight.model_copy(update={"flight_number": f"MK{i}"}) for i in range(25)],
+    ]
+    hotels = [hotel, hotel, *[hotel.model_copy(update={"name": f"Hotel {i}"}) for i in range(25)]]
+    attractions = [
+        attraction,
+        attraction,
+        *[attraction.model_copy(update={"name": f"Museum {i}"}) for i in range(45)],
+    ]
+    current = build_grounded_planner_input(
+        requirements=requirements(),
+        flights=flights,
+        hotels=hotels,
+        attractions=attractions,
+        retrieved_context=[],
+        remembered_preferences=[],
+        unavailable_searches=[],
+        revision_policy=RevisionPolicy(),
+    )
+    for name, values, cap in (
+        ("flight", flights, 20),
+        ("hotel", hotels, 20),
+        ("attraction", attractions, 40),
+    ):
+        registry = getattr(current, name + "s")
+        assert set(registry) == {stable_candidate_id(name, item) for item in values[:cap]}
+        assert len(registry) < cap  # Deliberate duplicates in the bounded provider slice.
+        assert [item.candidate_id for item in getattr(current.prompt, name + "s")] == list(registry)
+        for repair in (False, True):
+            content = planner_messages(
+                current.prompt.model_copy(update={"grounding_repair": repair})
+            )[1]["content"]
+            allowlist = json.loads(
+                content.split("Use only this authoritative JSON allowlist:\n")[1].splitlines()[0]
+            )
+            assert allowlist[f"allowed_{name}_ids"] == list(registry)

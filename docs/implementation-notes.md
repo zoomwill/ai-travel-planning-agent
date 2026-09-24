@@ -1261,3 +1261,113 @@ cd ..
 git diff --check
 git status --short
 ```
+
+### 2026-09-24 — Post-P19 explicit nationality and grounded selection hotfix
+
+- Scope: clean starting HEAD `2ed8b40` on `main`; this is maintenance, not P20. No frontend,
+  provider implementation, candidate hash, graph topology, persistence schema, Docker config,
+  review threshold/round limit, production config or deployment changes.
+- Bug A (owner-reported production symptom, locally reproduced boundary): the strict
+  `TripRequirementPatch.guest_nationality` accepts assigned ISO2 only. Even when extraction
+  converted a country name to ISO2, `require_explicit_nationality` only accepted a literal code
+  or dedicated code phrase, discarding `United States`/`USA`/`CHINA` answers and asking again.
+  The existing fixture only exercised literal CN/JP replies, so it missed that conversation.
+- Fix A: `normalize_explicit_country` uses exact bundled `pycountry 26.2.16` ISO fields and four
+  reviewed aliases, guarded by the existing assigned alpha-2 set. No fuzzy, numeric, historic,
+  location, locale or identity lookup. The only new dependency is the offline country dataset;
+  no per-request network call. [pycountry's own documentation](https://pypi.org/project/pycountry/)
+  describes its Debian ISO data and exact field lookup API. The installed lockfile version and
+  all bundled ISO alpha-2/alpha-3/name/official/common-name mappings are tested; bare `Congo` is
+  explicitly excluded despite the upstream short name because this conversation is ambiguous.
+- A dedicated nationality field or a valid country-only answer to a **sole nationality question**
+  bypasses LLM extraction and produces a strict ISO2 patch immediately. A complete draft can then
+  be corrected by `Actually China`. If destination and nationality are both missing, bare `Japan`
+  is not treated as nationality. Invalid explicit corrections remain unconfirmed across unrelated
+  turns until resolved/cleared; the previous valid value is not silently reconfirmed. Helpful
+  clarification gives United States (US), China (CN), Japan (JP) examples. Domain, API, frontend and
+  LiteAPI wire contracts remain ISO2. No automatic nationality preference write is added.
+- No-inference regressions cover origin Cleveland, residence, destination Japan, Chinese text,
+  browser language, IP, name, saved preference, negation and synthetic verified JWT profile claims.
+  The JWT test uses the existing generated test keys/MockTransport, not a real Auth0 session.
+- Bug B: the exact public text originates in `_safe_stream_error` in `app/streaming/service.py`,
+  mapped from `llm_grounding_violation`. `GroundingViolation` is raised by
+  `validate_grounded_decision` for unknown flight/hotel/daily-attraction IDs, and also for duplicate
+  attractions, day sequence or revision-policy violations. The reported text alone does **not**
+  identify which selection failed in production; no raw completion was fetched or retained here.
+  Previously a schema-valid unknown ID had no semantic correction path. Existing tests correctly
+  proved rejection but did not demand bounded recovery.
+- Registry audit: one `GroundedPlannerInput` already derived both prompt and validator maps
+  from the same bounded provider slices (20 flights, 20 hotels, 40 attractions, then stable-ID
+  deduplication). No separately regenerated allowlist mismatch was found. Provider aggregation,
+  source disclosure and volatile-metadata exclusions in SHA identities are unchanged. A new
+  equality test checks the serialized prompt allowlist against all three maps with oversized and
+  duplicate fixtures, including repair prompts. An additional exactness issue was fixed:
+  Pydantic's inherited whitespace stripping must not normalize opaque candidate IDs.
+- Fix B: one invocation-local semantic repair for an unknown candidate, using the same registry
+  and bounded/redacted prompt plus a fixed instruction. The internal `grounding_repair` boolean
+  is not a graph/checkpoint/API field. Never send the previous completion, SDK response or rejected
+  ID. Parse/validate the second decision identically; every selected fact must resolve to an
+  application-owned object. Duplicate IDs, arbitrary names, indexes, whitespace/case variants,
+  missing days and revision-policy violations remain rejected. No hash/wire migration is needed.
+- Structured-output decision: retain `json_object`, strict parser/Pydantic and grounding. The
+  existing configurable Qwen adapter has no validated model-capability switch for runtime enums;
+  [Alibaba's current structured-output documentation](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output)
+  limits JSON Schema mode to selected model families. No unsupported schema assumption or model
+  migration was introduced, and offline mocks are not evidence of cloud model support.
+- Cost bound: at most one **extra semantic Planner call per invocation**, including each genuine
+  Reviewer-driven revision. No new graph/search/Reviewer run due to repair. `QWEN_MAX_RETRIES`
+  keeps its transport-only meaning: at most `2 * (R + 1)` Planner HTTP attempts per invocation
+  (4 with default R=1, 6 at maximum R=2), not a promise of only one extra billed HTTP attempt.
+  Existing request timeouts, client cleanup and review bounds are unchanged. No new setting.
+- Once grounding is rejected, an unsuccessful repair (including transport/schema failure) returns
+  the existing safe grounding error without deterministic fallback even if ordinary fallback is
+  configured. Invalid decisions/notes never enter plans or checkpoints. Intake draft stays
+  available for explicit retry. Metrics/logs expose only bounded valid/repaired/failed outcomes;
+  no new candidate/user/thread/location labels or raw output. Parsing failures before grounding
+  remain in the existing LLM metrics, not double-counted as semantic outcomes.
+- LOCAL VERIFIED: focused suite **293 passed**; complete offline backend **880 passed, 21 skipped**;
+  Ruff check passed, format check passed (**402 files**), mypy passed (**173 app files**),
+  `git diff --check` passed. New regressions cover initial valid selection, each unknown kind,
+  failed repair/fallback disabled, exact IDs/duplicates, strict MessagePack history, actual graph
+  execution and five search counts, bounded review revision/forced finalize, one final SSE event,
+  retryable intake recovery, actual task cancellation and SSE disconnect during repair. The
+  SDK-shaped test separately proves one repair transport timeout retries within the existing
+  budget, keeps JSON mode and closes the owned client exactly once. No assertions were removed;
+  the previous hallucination rejection fixture now returns invalid selections on both allowed calls.
+- Test iteration: first focused run had 287 passed/2 failed. New tests initially assumed a
+  manually raised CancelledError was task cancellation and used `data.code` instead of the existing
+  SSE `data.error_code`. Tests now cancel an actual running task and assert the actual wire field.
+  Import/format warnings and one pycountry dynamic-keyword mypy error were corrected before final
+  verification. No network/safety gate was bypassed to make tests pass.
+- NOT RUN: frontend checks (no frontend change); local Docker integration (`desktop-linux`, local
+  Unix socket, successful `docker compose ps` but **no project services running**). Permission to
+  read the Docker socket/uv cache was obtained through the normal tool approval workflow.
+  No containers were started/stopped and no volumes touched. All real-service gates were disabled.
+- NOT VERIFIED: deployed hotfix, real Qwen repair effectiveness, fresh Auth0/Duffel/LiteAPI or
+  PostgreSQL integration. The public production symptom is owner-reported, not a new cloud test.
+  No real secrets/environment files were printed or edited; `.env`, `frontend/.env.local` and
+  browser-generated output remain ignored. No secret/session artifacts are included in the changed
+  file inventory. No commit, staging, push, deploy or new phase was performed.
+
+Repeat the local offline verification (run from the project root; do not enable paid gates):
+
+```bash
+export RUN_INTEGRATION_TESTS=0 RUN_P19_POSTGRES_TESTS=0 RUN_OBSERVABILITY_TESTS=0
+export RUN_AUTH0_INTEGRATION_TESTS=0 RUN_LLM_INTEGRATION_TESTS=0
+export RUN_DUFFEL_INTEGRATION_TESTS=0 RUN_LITEAPI_INTEGRATION_TESTS=0
+export RUN_EXTERNAL_AGENT_INTEGRATION_TESTS=0
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+export LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false
+uv sync --locked
+uv run --offline pytest tests/intake tests/llm tests/auth/test_nationality.py tests/external/liteapi -q
+uv run --offline ruff check .
+uv run --offline ruff format --check .
+uv run --offline mypy app
+uv run --offline pytest -q
+git diff --check
+git status --short
+git diff --stat
+git ls-files --others --exclude-standard
+```
+
+Suggested maintenance commit only: `fix: harden intake normalization and planner grounding`.

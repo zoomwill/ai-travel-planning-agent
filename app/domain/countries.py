@@ -2,6 +2,7 @@
 
 from typing import Annotated
 
+import pycountry
 from pydantic import AfterValidator, StringConstraints
 
 # Assigned ISO codes, not a country guess from a city, locale, IP, or language.
@@ -16,6 +17,42 @@ _COUNTRY_CODES = frozenset(
     "SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO "
     "TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split()
 )
+
+# Reviewed conversational aliases; never use fuzzy, numeric or historic-country lookup.
+_COUNTRY_ALIASES = (
+    ("u.s.", "US"),
+    ("u.s.a.", "US"),
+    ("prc", "CN"),
+    ("people's republic of china", "CN"),
+)
+
+
+def normalize_explicit_country(value: str) -> str | None:
+    """Normalize an explicitly supplied country, not a sentence or identity inference.
+
+    The caller owns the intake context. Exact ISO names/codes are read from bundled data;
+    there is no network, fuzzy search, locale lookup, or historic-country substitution.
+    """
+
+    answer = value.strip().casefold()
+    if not answer or answer in {"united", "republic", "congo"}:
+        return None
+    for alias, code in _COUNTRY_ALIASES:
+        if answer == alias:
+            return code
+    matches: set[str] = set()
+    for country in (
+        pycountry.countries.get(alpha_2=answer),
+        pycountry.countries.get(alpha_3=answer),
+        pycountry.countries.get(name=answer),
+        pycountry.countries.get(official_name=answer),
+        pycountry.countries.get(common_name=answer),
+    ):
+        if country is not None:
+            code = country.alpha_2
+            if isinstance(code, str) and code in _COUNTRY_CODES:
+                matches.add(code)
+    return next(iter(matches)) if len(matches) == 1 else None
 
 
 def validate_country_code(value: str) -> str:

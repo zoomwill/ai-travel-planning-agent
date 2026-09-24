@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime
 
 from langgraph.store.base import BaseStore
 
+from app.domain.countries import normalize_explicit_country
 from app.domain.models import TripRequirements
 from app.intake.errors import (
     IntakeConflictError,
@@ -18,8 +19,10 @@ from app.intake.errors import (
     IntakeUnavailableError,
 )
 from app.intake.logic import (
+    NATIONALITY_CLARIFICATION,
     assistant_message_for,
     draft_fingerprint,
+    explicit_nationality_value,
     invalid_requirement_fields,
     merge_requirement_patch,
     missing_requirement_fields,
@@ -32,6 +35,7 @@ from app.intake.models import (
     IntakeStatus,
     PartialTripRequirements,
     RequirementField,
+    TripRequirementPatch,
     complete_trip_requirements,
     new_intake_state,
 )
@@ -137,14 +141,43 @@ class ConversationIntakeService:
                 draft_fingerprint=draft_fingerprint(PartialTripRequirements()),
             )
             safe_message = redact_text(message)
+            asked_fields = list(dict.fromkeys([*current.invalid_fields, *current.missing_fields]))[
+                :2
+            ]
+            nationality_turn = RequirementField.GUEST_NATIONALITY in asked_fields
+            nationality_only_turn = asked_fields == [RequirementField.GUEST_NATIONALITY]
+            country_answer = explicit_nationality_value(
+                safe_message,
+                allow_bare_country=nationality_only_turn,
+                allow_correction=nationality_only_turn
+                or (
+                    current.status == IntakeStatus.AWAITING_CONFIRMATION
+                    and current.draft.guest_nationality is not None
+                ),
+            )
+            country_code = (
+                normalize_explicit_country(country_answer) if country_answer is not None else None
+            )
             try:
-                extraction = await self._provider.extract_trip_requirements(
-                    IntakePromptInput(
-                        current_date=self._current_date(),
-                        current_draft=current.draft,
-                        user_message=safe_message,
+                if country_answer is not None:
+                    # This dedicated answer needs no LLM parsing and cannot fail ISO2 parsing
+                    # merely because the user supplied a natural-language country name.
+                    patch = (
+                        TripRequirementPatch(guest_nationality=country_code)
+                        if country_code is not None
+                        else TripRequirementPatch()
                     )
-                )
+                else:
+                    extraction = await self._provider.extract_trip_requirements(
+                        IntakePromptInput(
+                            current_date=self._current_date(),
+                            current_draft=current.draft,
+                            user_message=safe_message,
+                        )
+                    )
+                    patch = require_explicit_nationality(
+                        safe_message, extraction.value.patch, allow_bare_country=False
+                    )
             except asyncio.CancelledError:
                 raise
             except LLMError as exc:
@@ -153,7 +186,6 @@ class ConversationIntakeService:
                 raise IntakeUnavailableError("llm_provider_error") from None
 
             try:
-                patch = require_explicit_nationality(safe_message, extraction.value.patch)
                 draft = merge_requirement_patch(current.draft, patch)
             except (ArithmeticError, ValueError):
                 raise IntakeUnavailableError("llm_schema_validation_failed") from None
@@ -161,12 +193,24 @@ class ConversationIntakeService:
                 draft, require_guest_nationality=self._require_guest_nationality
             )
             invalid = invalid_requirement_fields(draft)
+            if country_code is None and (
+                country_answer is not None
+                or (
+                    RequirementField.GUEST_NATIONALITY in current.invalid_fields
+                    and RequirementField.GUEST_NATIONALITY not in patch.clear_fields
+                )
+            ):
+                invalid.append(RequirementField.GUEST_NATIONALITY)
             status = (
                 IntakeStatus.AWAITING_CONFIRMATION
                 if not missing and not invalid
                 else IntakeStatus.COLLECTING
             )
             assistant_message = assistant_message_for(draft, missing, invalid)
+            if RequirementField.GUEST_NATIONALITY in invalid or (
+                nationality_turn and RequirementField.GUEST_NATIONALITY in missing
+            ):
+                assistant_message = NATIONALITY_CLARIFICATION
             turn_count = current.turn_count + 1
             messages = [
                 *current.messages,
